@@ -1,0 +1,1 @@
+ALTER TABLE public.hackathons ADD COLUMN IF NOT EXISTS link text DEFAULT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE public.carousel_slides ADD COLUMN IF NOT EXISTS image_url text;
