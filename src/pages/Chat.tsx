@@ -120,19 +120,9 @@ const Chat = () => {
         (existingConns || []).flatMap(c => [c.sender_id, c.receiver_id])
       );
 
-      // Create accepted connections for unconnected bots
-      const newConns = bots
-        .filter(b => b.id !== user.id && !connectedIds.has(b.id))
-        .map(b => ({
-          sender_id: b.id,
-          receiver_id: user.id,
-          status: "accepted",
-          college_id: collegeId,
-        }));
-
-      if (newConns.length > 0) {
-        await supabase.from("connections").insert(newConns);
-      }
+      // Bot auto-connect is disabled: bot student IDs are not real auth.users,
+      // so inserting them into connections would violate the FK constraint.
+      // Real user connections work fine through the normal connect flow.
 
       sessionStorage.setItem(sessionKey, "true");
     };
@@ -390,26 +380,41 @@ const Chat = () => {
     }
 
     const convId = getConversationId(user.id, activeContact.id);
-    const { error } = await supabase.from("messages").insert({
+    const optimisticMsg: ChatMessage = {
+      id: `opt-${Date.now()}`,
       conversation_id: convId,
       sender_id: user.id,
       receiver_id: activeContact.id,
       content: messageText.trim(),
       college_id: collegeId,
-    });
+      created_at: new Date().toISOString(),
+      is_read: false,
+    };
+    // Optimistically show message immediately
+    setMessages(prev => [...prev, optimisticMsg]);
+    setMessageText("");
+
+    const { data: inserted, error } = await supabase.from("messages").insert({
+      conversation_id: convId,
+      sender_id: user.id,
+      receiver_id: activeContact.id,
+      content: messageText.trim(),
+      college_id: collegeId,
+    }).select().single();
 
     if (error) {
+      // Roll back optimistic message
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
       toast.error("Failed to send message");
     } else {
-      // Update contact's last message locally
+      // Replace optimistic with real (has correct DB id for read receipts)
+      setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? inserted as ChatMessage : m));
       setContacts(prev => prev.map(c =>
         c.id === activeContact.id
-          ? { ...c, lastMsg: messageText.trim(), lastMsgTime: new Date().toISOString() }
+          ? { ...c, lastMsg: optimisticMsg.content, lastMsgTime: optimisticMsg.created_at }
           : c
       ));
-
     }
-    setMessageText("");
   };
 
   const filteredContacts = contacts.filter(c =>
