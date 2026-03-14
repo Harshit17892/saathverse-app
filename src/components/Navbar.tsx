@@ -162,7 +162,18 @@ const Navbar = () => {
           <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
-                <span className="hidden sm:inline text-sm text-muted-foreground">{profile?.full_name || user.email?.split("@")[0]}</span>
+                {/* Profile photo avatar — links to /profile */}
+                <Link to="/profile" className="relative h-8 w-8 rounded-full overflow-hidden ring-2 ring-border/40 hover:ring-accent/60 transition-all shrink-0">
+                  {profile?.photo_url ? (
+                    <img src={profile.photo_url} alt="Profile" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                      <span className="text-[11px] font-bold text-white">
+                        {(profile?.full_name || user.email || "?").charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </Link>
                 <button onClick={handleSignOut} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Sign out</span>
@@ -186,6 +197,7 @@ const Navbar = () => {
               {bottomBarItems.map((item) => {
                 const active = isActive(item.href);
                 const badgeCount = getBadgeCount(item.badgeKey);
+                const isProfileTab = item.href === "/profile";
                 return (
                   <Link
                     key={item.label}
@@ -202,7 +214,21 @@ const Navbar = () => {
                           transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                         />
                       )}
-                      <item.icon className="h-5 w-5 relative z-10" />
+                      {isProfileTab ? (
+                        <div className={`h-5 w-5 relative z-10 rounded-full overflow-hidden ${active ? "ring-2 ring-accent" : "ring-1 ring-border/40"}`}>
+                          {profile?.photo_url ? (
+                            <img src={profile.photo_url} alt="Profile" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="h-full w-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                              <span className="text-[7px] font-bold text-white">
+                                {(profile?.full_name || user?.email || "?").charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <item.icon className="h-5 w-5 relative z-10" />
+                      )}
                       <NavBadge count={badgeCount} />
                     </div>
                     <span className={`text-[10px] font-medium ${active ? "text-accent" : ""}`}>{item.label}</span>
