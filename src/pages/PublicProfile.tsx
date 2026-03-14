@@ -114,19 +114,17 @@ export default function PublicProfile() {
   const handleConnect = async () => {
     if (!user || !userId) { toast.error("Please log in first"); return; }
     setActionLoading(true);
-    const { error } = await supabase.from("connections").insert({
-      sender_id: user.id,
-      receiver_id: userId,
-      college_id: collegeId,
-    });
+    // Use SECURITY DEFINER RPC to bypass RLS entirely
+    const { data: result, error } = await supabase
+      .rpc("send_connection_request", { _receiver_id: userId });
     if (error) {
-      if (error.code === "23505") toast.info("Connection request already sent");
-      else {
-        console.error("Connection error:", error);
-        toast.error(`Failed to send request: ${error.message}`);
-      }
-    } else {
+      toast.error(`Failed: ${error.message}`);
+    } else if (result === "already_exists") {
+      toast.info("Connection request already sent");
+    } else if (result === "sent") {
       toast.success("Connection request sent!");
+    } else {
+      toast.error(result || "Something went wrong");
     }
     await fetchConnectionStatus();
     setActionLoading(false);
