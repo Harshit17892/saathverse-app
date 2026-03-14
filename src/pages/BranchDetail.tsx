@@ -221,10 +221,11 @@ const TopStudentCarousel = ({ students }: { students: TopStudent[] }) => {
   );
 };
 
-type StudentDisplay = { id?: string; name: string; dept: string; year: string; title: string; skills: string[]; avatar_url?: string | null };
+type StudentDisplay = { id?: string; name: string; dept: string; year: string; title: string; skills: string[]; avatar_url?: string | null; isBot?: boolean };
 
 const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDisplay; i: number; onConnect?: (studentId: string, studentName: string) => void; isSent?: boolean }) => {
   const [hovered, setHovered] = useState(false);
+  const canConnect = !student.isBot && !!student.id;
 
   return (
     <motion.div
@@ -271,7 +272,7 @@ const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDispla
           <div className="shrink-0 w-9 h-9 rounded-xl bg-green-500/15 flex items-center justify-center text-green-500 border border-green-500/20" title="Request sent">
             <CheckCircle2 className="w-4 h-4" />
           </div>
-        ) : (
+        ) : canConnect ? (
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
@@ -284,7 +285,7 @@ const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDispla
           >
             <UserPlus className="w-4 h-4" />
           </motion.button>
-        )}
+        ) : null}
       </div>
     </motion.div>
   );
@@ -323,21 +324,17 @@ const BranchDetail = () => {
 
   const handleConnect = async () => {
     setSendingRequest(true);
-    const { error } = await supabase.from("connections").insert({
-      sender_id: user!.id,
-      receiver_id: connectDialog.studentId,
-      status: "pending",
-      college_id: collegeId,
-    });
+    const { data: result, error } = await supabase
+      .rpc("send_connection_request", { _receiver_id: connectDialog.studentId });
     if (error) {
-      if (error.code === "23505") toast.info("Connection request already sent");
-      else {
-        console.error("Connection error:", error);
-        toast.error(`Failed to send request: ${error.message}`);
-      }
-    } else {
+      toast.error(`Failed: ${error.message}`);
+    } else if (result === "already_exists") {
+      toast.info("Connection request already sent");
+    } else if (result === "sent") {
       toast.success("Connection request sent!");
       setSentRequests(prev => new Set(prev).add(connectDialog.studentId));
+    } else {
+      toast.error(result || "Something went wrong");
     }
     setSendingRequest(false);
     setConnectDialog({ open: false, studentId: "", studentName: "" });
@@ -365,9 +362,14 @@ const BranchDetail = () => {
       const { data } = await query;
       if (data && data.length > 0) {
         setDbStudents(data.map((s: any) => ({
-          id: s.id, name: s.name, dept: s.branches?.name || meta.label,
+          id: s.id,
+          name: s.name,
+          dept: s.branches?.name || meta.label,
           year: s.graduation_year ? String(s.graduation_year) : "—",
-          title: s.bio || "Student", skills: s.skills || [], avatar_url: s.avatar_url,
+          title: s.bio || "Student",
+          skills: s.skills || [],
+          avatar_url: s.avatar_url,
+          isBot: s.is_bot ?? false,
         })));
       } else {
         setDbStudents([]);
