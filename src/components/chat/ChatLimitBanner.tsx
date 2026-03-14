@@ -51,15 +51,21 @@ export const useChatLimit = () => {
       return;
     }
 
-    // Check if 24h have passed since last reset
-    const hoursSinceReset = (Date.now() - new Date(data.last_reset_at).getTime()) / (1000 * 60 * 60);
-    if (hoursSinceReset >= 24) {
-      // Reset
+    // Reset at midnight IST (UTC+5:30) — same for all campus users
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000); // current time in IST
+    const lastReset = new Date(data.last_reset_at);
+    const lastResetIST = new Date(lastReset.getTime() + 5.5 * 60 * 60 * 1000);
+    const passedMidnightIST =
+      nowIST.getUTCFullYear() > lastResetIST.getUTCFullYear() ||
+      nowIST.getUTCMonth() > lastResetIST.getUTCMonth() ||
+      nowIST.getUTCDate() > lastResetIST.getUTCDate();
+    if (passedMidnightIST) {
+      const resetAt = new Date().toISOString();
       await supabase
         .from("chat_limits")
-        .update({ messages_used: 0, last_reset_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ messages_used: 0, last_reset_at: resetAt, updated_at: resetAt })
         .eq("user_id", user.id);
-      setState({ messagesUsed: 0, bonusMessages: data.bonus_messages, lastResetAt: new Date().toISOString(), loading: false });
+      setState({ messagesUsed: 0, bonusMessages: data.bonus_messages, lastResetAt: resetAt, loading: false });
     } else {
       setState({
         messagesUsed: data.messages_used,
@@ -78,9 +84,17 @@ export const useChatLimit = () => {
   const isExhausted = remaining <= 0;
 
   const resetTimeLeft = () => {
-    const resetAt = new Date(state.lastResetAt).getTime() + 24 * 60 * 60 * 1000;
-    const diff = resetAt - Date.now();
-    if (diff <= 0) return "Resetting...";
+    // Calculate ms until next midnight IST (UTC+5:30)
+    const nowUTC = Date.now();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(nowUTC + istOffset);
+    // Next midnight IST = today midnight IST + 1 day
+    const midnightIST = new Date(Date.UTC(
+      nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate() + 1,
+      0, 0, 0
+    ) - istOffset);
+    const diff = midnightIST.getTime() - nowUTC;
+    if (diff <= 0) return "12:00 AM";
     const h = Math.floor(diff / (1000 * 60 * 60));
     const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     return `${h}h ${m}m`;
