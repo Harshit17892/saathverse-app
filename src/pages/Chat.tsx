@@ -264,40 +264,53 @@ const Chat = () => {
     return () => { supabase.removeChannel(connChannel); };
   }, [user, targetUserId, collegeId]);
 
-  // Load messages for active contact
+  // Load messages + realtime subscription for active contact
   useEffect(() => {
     if (!user || !activeContact) { setMessages([]); return; }
 
     const convId = getConversationId(user.id, activeContact.id);
+    let pollInterval: ReturnType<typeof setInterval>;
 
-    const loadMessages = async () => {
+    const fetchMessages = async (markRead = false) => {
       const { data } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", convId)
         .order("created_at", { ascending: true });
 
-      setMessages((data as ChatMessage[]) || []);
+      if (data) {
+        // Merge with existing — keep optimistic messages, replace any that now have a real id
+        setMessages(prev => {
+          const optimistic = prev.filter(m => m.id.startsWith("opt-"));
+          const realIds = new Set(data.map((m: ChatMessage) => m.id));
+          // Remove optimistic if the real message content matches (already persisted)
+          const filteredOptimistic = optimistic.filter(o =>
+            !data.some((r: ChatMessage) => r.content === o.content && r.sender_id === o.sender_id)
+          );
+          return [...data as ChatMessage[], ...filteredOptimistic];
+        });
+      }
 
-      // Mark unread messages as read
-      await supabase
-        .from("messages")
-        .update({ is_read: true })
-        .eq("conversation_id", convId)
-        .eq("receiver_id", user.id)
-        .eq("is_read", false);
-
-      // Update contact unread count locally
-      setContacts(prev => prev.map(c =>
-        c.id === activeContact.id ? { ...c, unread: 0 } : c
-      ));
+      if (markRead) {
+        await supabase
+          .from("messages")
+          .update({ is_read: true })
+          .eq("conversation_id", convId)
+          .eq("receiver_id", user.id)
+          .eq("is_read", false);
+        setContacts(prev => prev.map(c =>
+          c.id === activeContact.id ? { ...c, unread: 0 } : c
+        ));
+      }
     };
 
-    loadMessages();
+    // Initial load
+    fetchMessages(true);
 
-    // Subscribe to new messages in this conversation
+    // Realtime subscription with status monitoring + auto-reconnect
+    const channelName = `chat:${convId}:${user.id}`;
     const channel = supabase
-      .channel(`chat:${convId}`)
+      .channel(channelName, { config: { broadcast: { self: false } } })
       .on(
         "postgres_changes",
         {
@@ -309,36 +322,53 @@ const Chat = () => {
         async (payload) => {
           const newMsg = payload.new as ChatMessage;
           setMessages(prev => {
+            // Skip if already exists (dedup by id)
             if (prev.find(m => m.id === newMsg.id)) return prev;
+            // Replace matching optimistic message from sender
+            const optIdx = prev.findIndex(
+              m => m.id.startsWith("opt-") && m.content === newMsg.content && m.sender_id === newMsg.sender_id
+            );
+            if (optIdx !== -1) {
+              const next = [...prev];
+              next[optIdx] = newMsg;
+              return next;
+            }
             return [...prev, newMsg];
           });
 
-          // Mark as read if we're the receiver
           if (newMsg.receiver_id === user.id) {
-            await supabase
-              .from("messages")
-              .update({ is_read: true })
-              .eq("id", newMsg.id);
+            await supabase.from("messages").update({ is_read: true }).eq("id", newMsg.id);
           }
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${convId}`,
-        },
+        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
         (payload) => {
           const updated = payload.new as ChatMessage;
           setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Clear polling once realtime is confirmed live
+          clearInterval(pollInterval);
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          // Realtime failed — fall back to polling every 3s
+          clearInterval(pollInterval);
+          pollInterval = setInterval(() => fetchMessages(false), 3000);
+        }
+      });
 
-    return () => { channel.unsubscribe(); };
-  }, [user, activeContact?.id]);
+    // Start polling immediately as a safety net (stops once realtime confirms SUBSCRIBED)
+    pollInterval = setInterval(() => fetchMessages(false), 3000);
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, activeContact?.id]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
