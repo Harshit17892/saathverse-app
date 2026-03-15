@@ -429,7 +429,8 @@ const Chat = () => {
       sender_id: user.id,
       receiver_id: activeContact.id,
       content: messageText.trim(),
-      college_id: collegeId,
+      // college_id intentionally omitted — storing it breaks RLS for cross-college delivery
+      // The new SELECT policy only checks sender_id/receiver_id
     }).select().single();
 
     if (error) {
