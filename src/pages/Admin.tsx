@@ -216,12 +216,23 @@ const Admin = () => {
       let failCount = 0;
       
       for (const b of branchesData) {
-        const row = {
+        const slug = b.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        // Check if this branch already exists for this college before inserting
+        const { data: existing } = await supabase
+          .from("branches")
+          .select("id")
+          .eq("college_id", activeCollegeId)
+          .eq("name", b.name)
+          .maybeSingle();
+        if (existing) {
+          // Already exists, skip
+          continue;
+        }
+        const { error } = await supabase.from("branches").insert({
           name: b.name,
-          slug: b.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+          slug: `${slug}-${activeCollegeId!.slice(0, 8)}`,
           college_id: activeCollegeId,
-        };
-        const { error } = await supabase.from("branches").insert(row);
+        });
         if (error) {
           console.error(`[Auto-Seed] Failed to insert "${b.name}":`, error.message);
           failCount++;
@@ -701,7 +712,8 @@ const Admin = () => {
       } else if (section === "ieee_conferences") {
         await upsertIEEEConf.mutateAsync({ ...base, title: form.title || "", description: form.description || null, conference_type: form.conference_type || "conference", date: form.date || null, end_date: form.end_date || null, location: form.location || null, hyperlink: form.hyperlink || null, sort_order: form.sort_order ? Number(form.sort_order) : 0, is_active: form.is_active === "true" || form.is_active === true });
       } else if (section === "branch_featured") {
-        await upsertBranchFeatured.mutateAsync({ ...base, branch_id: form.branch_id || "", student_id: form.student_id || "", achievement: form.achievement || null, sort_order: form.sort_order ? Number(form.sort_order) : 0 });
+        if (!form.branch_id || !form.student_id) { toast({ title: "Please select both a branch and a student", variant: "destructive" }); return; }
+        await upsertBranchFeatured.mutateAsync({ ...base, branch_id: form.branch_id, student_id: form.student_id, achievement: form.achievement || null, sort_order: form.sort_order ? Number(form.sort_order) : 0 });
       } else if (section === "startup_carousel") {
         await upsertStartupCarouselMut.mutateAsync({ ...base, title: form.title || "", description: form.description || null, image_url: form.image_url || null, category: form.category || "featured", hyperlink: form.hyperlink || null, link_text: form.link_text || "Learn More", sort_order: form.sort_order ? Number(form.sort_order) : 0, is_active: form.is_active === "true" || form.is_active === true });
       } else if (section === "discover_carousel") {
@@ -778,7 +790,7 @@ const Admin = () => {
        .eq("college_id", activeCollegeId);
        
     if (pError || !profiles) {
-       toast.error("Failed to fetch profiles");
+       toast({ title: "Error", description: "Failed to fetch profiles", variant: "destructive" });
        return;
     }
     
@@ -786,23 +798,49 @@ const Admin = () => {
     const { data: dbBranches } = await supabase.from("branches").select("id, name").eq("college_id", activeCollegeId);
     let successCount = 0;
 
+    // Helper: find branch_id from profile branch text (handles sub-branch → parent matching)
+    const findBranchId = (profileBranch: string | null) => {
+      if (!profileBranch || !dbBranches) return null;
+      // 1. Exact match to a DB branch name
+      const exact = dbBranches.find(b => b.name === profileBranch);
+      if (exact) return exact.id;
+      // 2. Check if it's a sub-branch → find parent main branch
+      for (const main of branchesData) {
+        if (main.subBranches.some(sb => sb.name === profileBranch)) {
+          const parent = dbBranches.find(b => b.name === main.name);
+          if (parent) return parent.id;
+        }
+      }
+      return null;
+    };
+
     for (const p of profiles) {
-       // We map string "branch" to actual "branch_id" UUID
-       const branchId = dbBranches?.find(b => b.name === p.branch)?.id || null;
+       const branchId = findBranchId(p.branch);
+       
+       // Convert year of study text to graduation year number
+       const cy = new Date().getFullYear();
+       let gradYear: number | null = null;
+       if (p.is_alumni && p.passout_year) {
+         gradYear = p.passout_year;
+       } else if (p.year_of_study) {
+         const match = p.year_of_study.match(/(\d+)/);
+         if (match) {
+           const yr = parseInt(match[1]);
+           gradYear = cy + (4 - yr);
+         }
+       }
        
        const { error } = await supabase.from("students").upsert({
          id: p.user_id,
          name: p.full_name || "Unknown",
          college_id: p.college_id,
          branch_id: branchId,
-         graduation_year: p.year_of_study === "1" ? new Date().getFullYear() + 3 :
-                          p.year_of_study === "2" ? new Date().getFullYear() + 2 :
-                          p.year_of_study === "3" ? new Date().getFullYear() + 1 :
-                          new Date().getFullYear(),
+         branch_name: p.branch || null,
+         graduation_year: gradYear,
          bio: p.bio,
          skills: p.skills || [],
          avatar_url: p.photo_url || null,
-         status: "active",
+         status: p.is_alumni ? "alumni" : "active",
          xp_points: 0
        });
        
@@ -810,7 +848,7 @@ const Admin = () => {
          successCount++;
        } else {
          console.error("Sync Error for", p.user_id, error);
-         toast.error(`Sync error for ${p.full_name}: ${error.message}`);
+         toast({ title: "Error", description: `Sync error for ${p.full_name}: ${error.message}`, variant: "destructive" });
        }
     }
     
@@ -2086,7 +2124,19 @@ const Admin = () => {
             <Field label="Student">
               <select className={selectClass} value={form.student_id || ""} onChange={(e) => setF("student_id", e.target.value)}>
                 <option value="">Select student</option>
-                {(students || []).filter((s: any) => !form.branch_id || s.branch_id === form.branch_id).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {(students || []).filter((s: any) => {
+                  if (!form.branch_id) return true;
+                  if (s.branch_id === form.branch_id) return true;
+                  // Fuzzy match: check if student's branch_name is a sub-branch of the selected branch
+                  const selectedBranch = displayBranches.find((b: any) => b.id === form.branch_id);
+                  if (selectedBranch && s.branch_name) {
+                    return branchesData.some(main =>
+                      main.name === selectedBranch.name &&
+                      (s.branch_name === main.name || main.subBranches.some(sb => sb.name === s.branch_name))
+                    );
+                  }
+                  return false;
+                }).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </Field>
             <Field label="Achievement"><Input className={inputClass} value={form.achievement || ""} onChange={(e) => setF("achievement", e.target.value)} placeholder="e.g. Built SaathVerse Platform" /></Field>
