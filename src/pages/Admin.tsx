@@ -255,10 +255,12 @@ const Admin = () => {
     seedBranches();
   }, [branches, branchesLoading, activeCollegeId]);
 
-  // Fallback: If DB branches is empty, use branchesData directly for dropdowns
-  const displayBranches = (branches && branches.length > 0)
-    ? branches
-    : branchesData.map((b, i) => ({ id: `local-${i}`, name: b.name, slug: b.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), college_id: activeCollegeId }));
+  // Use branchesData as the source for filter chips (global, not per-college)
+  const displayBranches = branchesData.map((b) => ({
+    id: b.slug,
+    name: b.name,
+    slug: b.slug,
+  }));
 
   const { data: formSettingsData = [] } = useFormSettings(activeCollegeId);
   const upsertFormSetting = useUpsertFormSetting();
@@ -794,28 +796,32 @@ const Admin = () => {
        return;
     }
     
-    // Fetch all branches
-    const { data: dbBranches } = await supabase.from("branches").select("id, name").eq("college_id", activeCollegeId);
+    // Fetch main_branches and specializations for lookup
+    const { data: mainBranchesDB } = await supabase.from("main_branches" as any).select("id, name");
+    const { data: specializationsDB } = await supabase.from("specializations" as any).select("id, name, branch_id");
     let successCount = 0;
 
-    // Helper: find branch_id from profile branch text (handles sub-branch → parent matching)
-    const findBranchId = (profileBranch: string | null) => {
-      if (!profileBranch || !dbBranches) return null;
-      // 1. Exact match to a DB branch name
-      const exact = dbBranches.find(b => b.name === profileBranch);
-      if (exact) return exact.id;
-      // 2. Check if it's a sub-branch → find parent main branch
-      for (const main of branchesData) {
-        if (main.subBranches.some(sb => sb.name === profileBranch)) {
-          const parent = dbBranches.find(b => b.name === main.name);
-          if (parent) return parent.id;
-        }
-      }
-      return null;
-    };
-
     for (const p of profiles) {
-       const branchId = findBranchId(p.branch);
+       // Look up main_branch_id: use profile's main_branch_id if set, else match by branch text
+       let mainBranchId = (p as any).main_branch_id || null;
+       let specializationId = (p as any).specialization_id || null;
+       
+       if (!mainBranchId && p.branch && mainBranchesDB) {
+         // Try to match branch text to a specialization name
+         const matchedSpec = (specializationsDB || []).find(
+           (sp: any) => sp.name.toLowerCase() === p.branch.toLowerCase()
+         );
+         if (matchedSpec) {
+           mainBranchId = (matchedSpec as any).branch_id;
+           specializationId = (matchedSpec as any).id;
+         } else {
+           // Try to match as a main branch name
+           const matchedMain = mainBranchesDB.find(
+             (mb: any) => mb.name.toLowerCase() === p.branch.toLowerCase()
+           );
+           if (matchedMain) mainBranchId = (matchedMain as any).id;
+         }
+       }
        
        // Convert year of study text to graduation year number
        const cy = new Date().getFullYear();
@@ -834,7 +840,8 @@ const Admin = () => {
          id: p.user_id,
          name: p.full_name || "Unknown",
          college_id: p.college_id,
-         branch_id: branchId,
+         main_branch_id: mainBranchId,
+         specialization_id: specializationId,
          branch_name: p.branch || null,
          graduation_year: gradYear,
          bio: p.bio,
@@ -842,7 +849,7 @@ const Admin = () => {
          avatar_url: p.photo_url || null,
          status: p.is_alumni ? "alumni" : "active",
          xp_points: 0
-       });
+       } as any);
        
        if (!error) {
          successCount++;
@@ -1407,14 +1414,14 @@ const Admin = () => {
                       All ({(students || []).length})
                     </motion.button>
                     {(showAllBranches ? displayBranches : displayBranches.slice(0, 3)).map((branch: any) => {
-                      const count = (students || []).filter((s: any) => s.branch_id === branch.id).length;
+                      const count = (students || []).filter((s: any) => (s.main_branch?.slug || s.branches?.slug) === branch.slug).length;
                       return (
                         <motion.button
                           key={branch.id}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => setBranchFilter(branchFilter === branch.id ? null : branch.id)}
+                          onClick={() => setBranchFilter(branchFilter === branch.slug ? null : branch.slug)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                            branchFilter === branch.id
+                            branchFilter === branch.slug
                               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
                               : "bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/30"
                           }`}
@@ -1422,14 +1429,14 @@ const Admin = () => {
                           <GitBranch className="h-3 w-3" />
                           {branch.name}
                           <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            branchFilter === branch.id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                            branchFilter === branch.slug ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
                           }`}>
                             {count}
                           </span>
                         </motion.button>
                       );
                     })}
-                    {showAllBranches && (students || []).some((s: any) => !s.branch_id) && (
+                    {showAllBranches && (students || []).some((s: any) => !s.main_branch_id && !s.main_branch) && (
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setBranchFilter(branchFilter === "none" ? null : "none")}
@@ -1443,7 +1450,7 @@ const Admin = () => {
                         <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                           branchFilter === "none" ? "bg-destructive-foreground/20" : "bg-muted text-muted-foreground"
                         }`}>
-                          {(students || []).filter((s: any) => !s.branch_id).length}
+                          {(students || []).filter((s: any) => !s.main_branch_id && !s.main_branch).length}}
                         </span>
                       </motion.button>
                     )}
@@ -1495,13 +1502,11 @@ const Admin = () => {
                         </button>
                       ))}
                     </div>
-                  </div>
-                </div>
-                <DataTable columns={["", "Name", "Email", "Branch", "Year", "Status", "XP"]}
+                                <DataTable columns={["", "Name", "Email", "Branch", "Year", "Status", "XP"]}
                   rows={(students || [])
                     .filter((s: any) => {
-                      if (branchFilter === "none") return !s.branch_id;
-                      if (branchFilter) return s.branch_id === branchFilter;
+                      if (branchFilter === "none") return !s.main_branch_id && !s.main_branch;
+                      if (branchFilter) return (s.main_branch?.slug || s.branches?.slug) === branchFilter;
                       return true;
                     })
                     .filter((s: any) => {
@@ -1511,6 +1516,8 @@ const Admin = () => {
                         s.name?.toLowerCase().includes(q) ||
                         s.email?.toLowerCase().includes(q) ||
                         (s.skills || []).some((sk: string) => sk.toLowerCase().includes(q)) ||
+                        s.main_branch?.name?.toLowerCase().includes(q) ||
+                        s.specialization?.name?.toLowerCase().includes(q) ||
                         s.branches?.name?.toLowerCase().includes(q)
                       );
                     })
@@ -1524,9 +1531,9 @@ const Admin = () => {
                     .map((s: any) => ({
                       id: s.id, cells: [
                         <img key="avatar" src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || "?")}&background=7c3aed&color=fff&size=32`} alt="" className="h-8 w-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-primary transition-all" onClick={(e) => { e.stopPropagation(); setEnlargedImage(s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || "?")}&background=7c3aed&color=fff&size=200`); }} />,
-                        s.name, s.email || "-", s.branches?.name || "-", s.graduation_year || "-", <StatusBadge key="s" status={s.status} />, s.xp_points || 0
+                        s.name, s.email || "-", s.main_branch?.name || s.branches?.name || s.branch_name || "-", s.graduation_year || "-", <StatusBadge key="s" status={s.status} />, s.xp_points || 0
                       ], raw: s,
-                    }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
+                    }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />te={(id) => handleDelete(id)} />
               </>
             )}
             {section === "events" && (
