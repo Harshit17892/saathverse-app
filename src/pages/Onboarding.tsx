@@ -142,9 +142,10 @@ export default function Onboarding() {
       }
     }
 
+    // Save mainBranch (not subBranch) to profiles.branch so it matches branches.name in DB
     const { error } = await supabase.from("profiles").update({
       full_name: fullName.trim(),
-      branch: isAdminInvite ? (designation || "Admin") : (subBranch || mainBranch || null),
+      branch: isAdminInvite ? (designation || "Admin") : (mainBranch || null),
       year_of_study: isAdminInvite ? null : (isAlumni ? "Alumni" : yearOfStudy || null),
       passout_year: isAdminInvite ? null : (isAlumni && passoutYear ? passoutYear : null),
       is_alumni: isAdminInvite ? false : isAlumni,
@@ -156,6 +157,46 @@ export default function Onboarding() {
     }).eq("user_id", user.id);
 
     if (error) { toast.error(error.message); setSubmitting(false); return; }
+
+    // Auto-sync: upsert the student record into the students table
+    // so admin panel immediately sees branch/year data (no manual Sync needed)
+    if (!isAdminInvite && college?.id) {
+      try {
+        const { data: dbBranches } = await supabase
+          .from("branches").select("id, name")
+          .eq("college_id", college.id);
+        const branchId = dbBranches?.find((b: any) => b.name === mainBranch)?.id || null;
+
+        // Convert year of study text to graduation year number
+        const cy = new Date().getFullYear();
+        let gradYear: number | null = null;
+        if (isAlumni && passoutYear) {
+          gradYear = passoutYear;
+        } else if (yearOfStudy) {
+          const match = yearOfStudy.match(/(\d+)/);
+          if (match) {
+            const yr = parseInt(match[1]);
+            gradYear = cy + (4 - yr);
+          }
+        }
+
+        await supabase.from("students").upsert({
+          id: user.id,
+          name: fullName.trim(),
+          college_id: college.id,
+          branch_id: branchId,
+          branch_name: subBranch || mainBranch || null,
+          email: user.email || null,
+          graduation_year: gradYear,
+          bio: bio || null,
+          skills: skills,
+          avatar_url: photoUrl,
+          status: isAlumni ? "alumni" : "active",
+        });
+      } catch (syncErr) {
+        console.error("[Onboarding] Auto-sync to students failed:", syncErr);
+      }
+    }
 
     await refreshProfile();
     toast.success(isAdminInvite ? "Welcome, Admin! 🛡️" : "Profile set up! Welcome to SaathVerse 🎉");
