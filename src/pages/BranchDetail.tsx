@@ -28,6 +28,7 @@ const branchMeta: Record<string, { label: string; color: string; icon: typeof Co
   agriculture: { label: "Agriculture", color: "from-lime-400 to-green-600", icon: Globe },
   pharmacy: { label: "Pharmacy", color: "from-teal-400 to-cyan-600", icon: Sparkles },
   "nursing-paramedical": { label: "Nursing & Paramedical", color: "from-red-400 to-rose-600", icon: Award },
+  "computer-applications": { label: "Computer Applications", color: "from-indigo-500 to-blue-600", icon: Code },
 };
 
 // No more hardcoded data — events and top students come from the database
