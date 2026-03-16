@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
+
 // ==================== COLLEGES (with realtime) ====================
 export const useCollegesRealtime = () => {
   const qc = useQueryClient();
@@ -16,6 +17,7 @@ export const useCollegesRealtime = () => {
     return () => { supabase.removeChannel(channel); };
   }, [qc]);
 };
+
 export const useColleges = () =>
   useQuery({
     queryKey: ["colleges"],
@@ -25,6 +27,7 @@ export const useColleges = () =>
       return data;
     },
   });
+
 export const useUpsertCollege = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -36,6 +39,7 @@ export const useUpsertCollege = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["colleges"] }),
   });
 };
+
 export const useDeleteCollege = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -46,7 +50,8 @@ export const useDeleteCollege = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["colleges"] }),
   });
 };
-// ==================== BRANCHES ====================
+
+
 // ==================== BRANCHES (legacy — kept for events/announcements backward compat) ====================
 export const useBranches = () => {
   const { collegeId } = useAuth();
@@ -60,6 +65,7 @@ export const useBranches = () => {
     },
   });
 };
+
 export const useUpsertBranch = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -72,6 +78,7 @@ export const useUpsertBranch = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["branches"] }),
   });
 };
+
 export const useDeleteBranch = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -82,6 +89,7 @@ export const useDeleteBranch = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["branches"] }),
   });
 };
+
 // ==================== MAIN BRANCHES (new global tables) ====================
 export const useMainBranches = () =>
   useQuery({
@@ -92,6 +100,7 @@ export const useMainBranches = () =>
       return data as any[];
     },
   });
+
 export const useSpecializations = (mainBranchId?: string | null) =>
   useQuery({
     queryKey: ["specializations", mainBranchId],
@@ -103,6 +112,7 @@ export const useSpecializations = (mainBranchId?: string | null) =>
       return data as any[];
     },
   });
+
 // ==================== STUDENTS ====================
 export const useStudents = () => {
   const { collegeId } = useAuth();
@@ -112,7 +122,6 @@ export const useStudents = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
-        .select("*, branches(name, slug)")
         .select("*, branches(name, slug), main_branch:main_branch_id(id, name, slug), specialization:specialization_id(id, name)")
         .eq("college_id", collegeId!)
         .order("created_at", { ascending: false });
@@ -121,6 +130,7 @@ export const useStudents = () => {
     },
   });
 };
+
 export const useUpsertStudent = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -133,6 +143,7 @@ export const useUpsertStudent = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["students"] }),
   });
 };
+
 export const useDeleteStudent = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -143,6 +154,7 @@ export const useDeleteStudent = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["students"] }),
   });
 };
+
 // ==================== EVENTS ====================
 export const useEvents = () => {
   const { collegeId } = useAuth();
@@ -160,6 +172,7 @@ export const useEvents = () => {
     },
   });
 };
+
 export const useUpsertEvent = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -172,6 +185,7 @@ export const useUpsertEvent = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["events"] }),
   });
 };
+
 export const useDeleteEvent = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -182,6 +196,7 @@ export const useDeleteEvent = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["events"] }),
   });
 };
+
 // ==================== ACHIEVEMENTS ====================
 export const useAchievements = () => {
   const { collegeId } = useAuth();
@@ -199,6 +214,7 @@ export const useAchievements = () => {
     },
   });
 };
+
 export const useUpsertAchievement = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -211,6 +227,7 @@ export const useUpsertAchievement = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["achievements"] }),
   });
 };
+
 export const useDeleteAchievement = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -221,6 +238,7 @@ export const useDeleteAchievement = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["achievements"] }),
   });
 };
+
 // ==================== ANNOUNCEMENTS ====================
 export const useAnnouncements = () => {
   const { collegeId } = useAuth();
@@ -238,6 +256,7 @@ export const useAnnouncements = () => {
     },
   });
 };
+
 export const useUpsertAnnouncement = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -250,6 +269,7 @@ export const useUpsertAnnouncement = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
   });
 };
+
 export const useDeleteAnnouncement = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -260,6 +280,7 @@ export const useDeleteAnnouncement = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
   });
 };
+
 // ==================== HACKATHONS ====================
 export const useHackathons = () => {
   const { collegeId } = useAuth();
@@ -275,6 +296,7 @@ export const useHackathons = () => {
     },
   });
 };
+
 export const useUpsertHackathon = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -287,6 +309,7 @@ export const useUpsertHackathon = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hackathons"] }),
   });
 };
+
 export const useDeleteHackathon = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -297,6 +320,7 @@ export const useDeleteHackathon = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hackathons"] }),
   });
 };
+
 // ==================== CLUBS ====================
 export const useClubs = () => {
   const { collegeId } = useAuth();
@@ -310,6 +334,7 @@ export const useClubs = () => {
     },
   });
 };
+
 export const useClubBySlug = (slug: string | undefined) => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -322,6 +347,7 @@ export const useClubBySlug = (slug: string | undefined) => {
     },
   });
 };
+
 export const useUpsertClub = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -334,6 +360,7 @@ export const useUpsertClub = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["clubs"] }),
   });
 };
+
 export const useDeleteClub = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -344,6 +371,7 @@ export const useDeleteClub = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["clubs"] }),
   });
 };
+
 // ==================== ALUMNI ====================
 export const useAlumni = () => {
   const { collegeId } = useAuth();
@@ -357,6 +385,7 @@ export const useAlumni = () => {
     },
   });
 };
+
 export const useUpsertAlumni = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -369,6 +398,7 @@ export const useUpsertAlumni = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["alumni"] }),
   });
 };
+
 export const useDeleteAlumni = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -379,6 +409,7 @@ export const useDeleteAlumni = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["alumni"] }),
   });
 };
+
 // ==================== IEEE MEMBERS ====================
 export const useIEEEMembers = () => {
   const { collegeId } = useAuth();
@@ -392,6 +423,7 @@ export const useIEEEMembers = () => {
     },
   });
 };
+
 export const useUpsertIEEEMember = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -404,6 +436,7 @@ export const useUpsertIEEEMember = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ieee_members"] }),
   });
 };
+
 export const useDeleteIEEEMember = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -414,6 +447,7 @@ export const useDeleteIEEEMember = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ieee_members"] }),
   });
 };
+
 // ==================== CAROUSEL SLIDES ====================
 export const useCarouselSlides = () => {
   const { collegeId } = useAuth();
@@ -432,6 +466,7 @@ export const useCarouselSlides = () => {
     },
   });
 };
+
 export const useAllCarouselSlides = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -448,6 +483,7 @@ export const useAllCarouselSlides = () => {
     },
   });
 };
+
 export const useUpsertCarouselSlide = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -463,6 +499,7 @@ export const useUpsertCarouselSlide = () => {
     },
   });
 };
+
 export const useDeleteCarouselSlide = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -476,6 +513,7 @@ export const useDeleteCarouselSlide = () => {
     },
   });
 };
+
 // ==================== PUBLIC HOOKS (no auth needed) ====================
 export const usePublicBranches = () =>
   useQuery({
@@ -486,6 +524,7 @@ export const usePublicBranches = () =>
       return data as Tables<"branches">[];
     },
   });
+
 export const usePublicMainBranches = () =>
   useQuery({
     queryKey: ["main_branches_public"],
@@ -495,6 +534,7 @@ export const usePublicMainBranches = () =>
       return data as any[];
     },
   });
+
 export const usePublicCarouselSlides = () =>
   useQuery({
     queryKey: ["carousel_slides_public"],
@@ -509,6 +549,7 @@ export const usePublicCarouselSlides = () =>
       return data;
     },
   });
+
 // ==================== FORM SETTINGS ====================
 export const useFormSettings = (collegeId: string | null) =>
   useQuery({
@@ -524,6 +565,7 @@ export const useFormSettings = (collegeId: string | null) =>
       return data;
     },
   });
+
 export const useUpsertFormSetting = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -535,6 +577,7 @@ export const useUpsertFormSetting = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["form_settings"] }),
   });
 };
+
 // ==================== HACKATHON CAROUSEL ====================
 export const useHackathonCarousel = () => {
   const { collegeId } = useAuth();
@@ -553,6 +596,7 @@ export const useHackathonCarousel = () => {
     },
   });
 };
+
 export const useAllHackathonCarousel = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -569,6 +613,7 @@ export const useAllHackathonCarousel = () => {
     },
   });
 };
+
 export const useUpsertHackathonCarousel = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -581,6 +626,7 @@ export const useUpsertHackathonCarousel = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hackathon_carousel"] }); qc.invalidateQueries({ queryKey: ["hackathon_carousel_all"] }); },
   });
 };
+
 export const useDeleteHackathonCarousel = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -591,6 +637,7 @@ export const useDeleteHackathonCarousel = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hackathon_carousel"] }); qc.invalidateQueries({ queryKey: ["hackathon_carousel_all"] }); },
   });
 };
+
 // ==================== IEEE CONFERENCES ====================
 export const useIEEEConferences = () => {
   const { collegeId } = useAuth();
@@ -605,6 +652,7 @@ export const useIEEEConferences = () => {
     },
   });
 };
+
 export const useAllIEEEConferences = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -618,6 +666,7 @@ export const useAllIEEEConferences = () => {
     },
   });
 };
+
 export const useUpsertIEEEConference = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -630,6 +679,7 @@ export const useUpsertIEEEConference = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ieee_conferences"] }); qc.invalidateQueries({ queryKey: ["ieee_conferences_all"] }); },
   });
 };
+
 export const useDeleteIEEEConference = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -640,6 +690,7 @@ export const useDeleteIEEEConference = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ieee_conferences"] }); qc.invalidateQueries({ queryKey: ["ieee_conferences_all"] }); },
   });
 };
+
 // ==================== IEEE CAROUSEL ====================
 export const useIEEECarousel = () => {
   const { collegeId } = useAuth();
@@ -658,6 +709,7 @@ export const useIEEECarousel = () => {
     },
   });
 };
+
 export const useAllIEEECarousel = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -674,6 +726,7 @@ export const useAllIEEECarousel = () => {
     },
   });
 };
+
 export const useUpsertIEEECarousel = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -686,6 +739,7 @@ export const useUpsertIEEECarousel = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ieee_carousel"] }); qc.invalidateQueries({ queryKey: ["ieee_carousel_all"] }); },
   });
 };
+
 export const useDeleteIEEECarousel = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -696,6 +750,7 @@ export const useDeleteIEEECarousel = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ieee_carousel"] }); qc.invalidateQueries({ queryKey: ["ieee_carousel_all"] }); },
   });
 };
+
 // ==================== BRANCH FEATURED STUDENTS ====================
 export const useBranchFeaturedStudents = (branchId?: string | null) => {
   const { collegeId } = useAuth();
@@ -714,6 +769,7 @@ export const useBranchFeaturedStudents = (branchId?: string | null) => {
     },
   });
 };
+
 export const useAllBranchFeaturedStudents = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -730,6 +786,7 @@ export const useAllBranchFeaturedStudents = () => {
     },
   });
 };
+
 export const useUpsertBranchFeaturedStudent = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -742,6 +799,7 @@ export const useUpsertBranchFeaturedStudent = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["branch_featured_students"] }),
   });
 };
+
 export const useDeleteBranchFeaturedStudent = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -752,6 +810,7 @@ export const useDeleteBranchFeaturedStudent = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["branch_featured_students"] }),
   });
 };
+
 // ==================== STARTUP CAROUSEL ====================
 export const useStartupCarousel = () => {
   const { collegeId } = useAuth();
@@ -766,6 +825,7 @@ export const useStartupCarousel = () => {
     },
   });
 };
+
 export const useAllStartupCarousel = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -779,6 +839,7 @@ export const useAllStartupCarousel = () => {
     },
   });
 };
+
 export const useUpsertStartupCarousel = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -791,6 +852,7 @@ export const useUpsertStartupCarousel = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["startup_carousel"] }),
   });
 };
+
 export const useDeleteStartupCarousel = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -801,6 +863,7 @@ export const useDeleteStartupCarousel = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["startup_carousel"] }),
   });
 };
+
 // ==================== SPOTLIGHT CAROUSEL ====================
 export const useSpotlightCarousel = () => {
   const { collegeId } = useAuth();
@@ -818,6 +881,7 @@ export const useSpotlightCarousel = () => {
     },
   });
 };
+
 export const useSpotlightCarouselAdmin = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -832,6 +896,7 @@ export const useSpotlightCarouselAdmin = () => {
     },
   });
 };
+
 export const useUpsertSpotlight = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -847,6 +912,7 @@ export const useUpsertSpotlight = () => {
     },
   });
 };
+
 export const useDeleteSpotlight = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -860,6 +926,7 @@ export const useDeleteSpotlight = () => {
     },
   });
 };
+
 // ==================== DISCOVER CAROUSEL ====================
 export const useDiscoverCarousel = () => {
   const { collegeId } = useAuth();
@@ -876,6 +943,7 @@ export const useDiscoverCarousel = () => {
     },
   });
 };
+
 export const useAllDiscoverCarousel = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -889,6 +957,7 @@ export const useAllDiscoverCarousel = () => {
     },
   });
 };
+
 export const useUpsertDiscoverCarousel = () => {
   const qc = useQueryClient();
   const { collegeId } = useAuth();
@@ -901,6 +970,7 @@ export const useUpsertDiscoverCarousel = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["discover_carousel"] }); qc.invalidateQueries({ queryKey: ["discover_carousel_all"] }); },
   });
 };
+
 export const useDeleteDiscoverCarousel = () => {
   const qc = useQueryClient();
   return useMutation({
