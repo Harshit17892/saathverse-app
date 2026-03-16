@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { branchesData, getSubBranches } from "@/data/branchesData";
+import { branchesData, getSubBranches, degreeLevels } from "@/data/branchesData";
 import ImageCropper from "@/components/ImageCropper";
 
-const STEPS = ["Account", "Profile", "Branch", "Finalize"];
+const STEPS = ["Account", "Profile", "Branch", "Degree", "Finalize"];
 
 /* ── Conic spinning ring ── */
 const SpinningGradientRing = ({ size, duration, direction = 1 }: { size: number; duration: number; direction?: number }) => (
@@ -138,6 +138,7 @@ const Signup = () => {
   const [companyType, setCompanyType] = useState<"tech" | "non-tech" | "">("");
   const [mainBranch, setMainBranch] = useState("");
   const [subBranch, setSubBranch] = useState("");
+  const [degreeLevel, setDegreeLevel] = useState<"UG" | "PG" | "PhD" | "">("" );
   const [yearOfStudy, setYearOfStudy] = useState("");
   const [skillInput, setSkillInput] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
@@ -277,10 +278,28 @@ const Signup = () => {
       }
     }
 
+    // Look up main_branch_id from main_branches table
+    let mainBranchId: string | null = null;
+    let specializationId: string | null = null;
+    if (mainBranch) {
+      const { data: mbRow } = await supabase
+        .from("main_branches" as any).select("id").eq("name", mainBranch).maybeSingle();
+      if (mbRow) mainBranchId = (mbRow as any).id;
+    }
+    // Look up specialization_id from specializations table
+    if (subBranch && mainBranchId) {
+      const { data: spRow } = await supabase
+        .from("specializations" as any).select("id").eq("name", subBranch).eq("branch_id", mainBranchId).maybeSingle();
+      if (spRow) specializationId = (spRow as any).id;
+    }
+
     await supabase.from("profiles").update({
       full_name: fullName.trim(),
       college_id: college.id,
       branch: subBranch || mainBranch || null,
+      main_branch_id: mainBranchId,
+      specialization_id: specializationId,
+      degree_level: degreeLevel || null,
       year_of_study: isAlumni ? "Alumni" : yearOfStudy || null,
       passout_year: isAlumni && passoutYear ? passoutYear : null,
       is_alumni: isAlumni,
@@ -586,6 +605,40 @@ const Signup = () => {
                   )}
                 </AnimatePresence>
 
+                <div className="flex gap-3 mt-2">
+                  <Button onClick={() => setStep(1)} variant="outline" className="h-12 rounded-full flex-1 gap-2">
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </Button>
+                  <Button onClick={nextStep}
+                    className="h-12 rounded-full flex-1 glow-accent gap-2"
+                    style={{ background: "linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)))", color: "hsl(var(--accent-foreground))" }}
+                  >
+                    Continue <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 3: Degree Level & Year */}
+          {!isLogin && step === 3 && (
+            <motion.div key="step3" custom={1} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
+              <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-2">Degree & Year</h1>
+              <p className="text-muted-foreground mb-8">Select your degree level and current year.</p>
+              <div className="space-y-5 max-w-md">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Degree Level</label>
+                  <div className="flex gap-3">
+                    {degreeLevels.map((d) => (
+                      <motion.button key={d} whileTap={{ scale: 0.95 }}
+                        onClick={() => setDegreeLevel(d === degreeLevel ? "" : d)}
+                        className={`flex-1 h-12 rounded-xl border text-sm font-medium transition-all ${degreeLevel === d ? "bg-accent/15 border-accent/40 text-accent" : "bg-secondary/30 border-border/30 text-muted-foreground hover:border-border/60"}`}>
+                        {d === "UG" ? "🎓 UG" : d === "PG" ? "📚 PG" : "🔬 PhD"}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+
                 {!isAlumni && (
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Year of Study</label>
@@ -602,7 +655,7 @@ const Signup = () => {
                 )}
 
                 <div className="flex gap-3 mt-2">
-                  <Button onClick={() => setStep(1)} variant="outline" className="h-12 rounded-full flex-1 gap-2">
+                  <Button onClick={() => setStep(2)} variant="outline" className="h-12 rounded-full flex-1 gap-2">
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
                   <Button onClick={nextStep}
@@ -616,8 +669,8 @@ const Signup = () => {
             </motion.div>
           )}
 
-          {/* STEP 3: Finalize */}
-          {!isLogin && step === 3 && (
+          {/* STEP 4: Finalize */}
+          {!isLogin && step === 4 && (
             <motion.div key="step3" custom={1} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
               <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-2">Almost there!</h1>
               <p className="text-muted-foreground mb-8">Add your skills and launch into SaathVerse.</p>
@@ -694,6 +747,7 @@ const Signup = () => {
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {mainBranch && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{mainBranch}</span>}
                     {subBranch && <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">{subBranch}</span>}
+                    {degreeLevel && <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">{degreeLevel}</span>}
                     {isAlumni && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">Alumni</span>}
                     {yearOfStudy && !isAlumni && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">{yearOfStudy}</span>}
                     {hackathonInterest && <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">🏆 Hackathon Ready</span>}
@@ -701,7 +755,7 @@ const Signup = () => {
                 </motion.div>
 
                 <div className="flex gap-3 mt-2">
-                  <Button onClick={() => setStep(2)} variant="outline" className="h-12 rounded-full flex-1 gap-2">
+                  <Button onClick={() => setStep(3)} variant="outline" className="h-12 rounded-full flex-1 gap-2">
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
                   <Button onClick={handleSubmit} disabled={loading}
