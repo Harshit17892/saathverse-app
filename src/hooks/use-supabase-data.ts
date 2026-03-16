@@ -52,7 +52,7 @@ export const useDeleteCollege = () => {
 };
 
 
-// ==================== BRANCHES ====================
+// ==================== BRANCHES (legacy — kept for events/announcements backward compat) ====================
 export const useBranches = () => {
   const { collegeId } = useAuth();
   return useQuery({
@@ -90,6 +90,29 @@ export const useDeleteBranch = () => {
   });
 };
 
+// ==================== MAIN BRANCHES (new global tables) ====================
+export const useMainBranches = () =>
+  useQuery({
+    queryKey: ["main_branches"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("main_branches" as any).select("*").order("name");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+export const useSpecializations = (mainBranchId?: string | null) =>
+  useQuery({
+    queryKey: ["specializations", mainBranchId],
+    queryFn: async () => {
+      let q = supabase.from("specializations" as any).select("*, main_branches:branch_id(id, name, slug)").order("name");
+      if (mainBranchId) q = q.eq("branch_id", mainBranchId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
 // ==================== STUDENTS ====================
 export const useStudents = () => {
   const { collegeId } = useAuth();
@@ -99,7 +122,7 @@ export const useStudents = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
-        .select("*, branches(name, slug)")
+        .select("*, branches(name, slug), main_branch:main_branch_id(id, name, slug), specialization:specialization_id(id, name)")
         .eq("college_id", collegeId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -499,6 +522,16 @@ export const usePublicBranches = () =>
       const { data, error } = await supabase.from("branches").select("*").order("name");
       if (error) throw error;
       return data as Tables<"branches">[];
+    },
+  });
+
+export const usePublicMainBranches = () =>
+  useQuery({
+    queryKey: ["main_branches_public"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("main_branches" as any).select("*").order("name");
+      if (error) throw error;
+      return data as any[];
     },
   });
 
