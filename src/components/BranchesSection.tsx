@@ -56,31 +56,23 @@ const BranchesSection = () => {
   const [showAll, setShowAll] = useState(false);
 
   const { data: dbBranches = [] } = useQuery({
-    queryKey: ["branches_college", collegeId],
+    queryKey: ["main_branches_section"],
     queryFn: async () => {
-      let query = supabase.from("branches").select("*").order("name");
-      if (collegeId) query = query.eq("college_id", collegeId);
-      const { data, error } = await query;
+      const { data, error } = await supabase
+        .from("main_branches" as any)
+        .select("*")
+        .order("name");
       if (error) throw error;
       return data;
     },
   });
 
-  const branches = dbBranches.length > 2
-    ? (() => {
-        const mapped = Array.from(new Map(dbBranches.map((b: any) => [b.slug, {
-          name: b.name,
-          slug: b.slug,
-          icon: iconMap[b.icon] || slugIconMap[b.slug] || "📚",
-        }])).values());
-        // Put Engineering & Technology first
-        const engIdx = mapped.findIndex((b: any) => b.slug === "engineering-technology");
-        if (engIdx > 0) {
-          const [eng] = mapped.splice(engIdx, 1);
-          mapped.unshift(eng);
-        }
-        return mapped;
-      })()
+  const branches = (dbBranches as any[]).length > 0
+    ? (dbBranches as any[]).map((b: any) => ({
+        name: b.name,
+        slug: b.slug,
+        icon: slugIconMap[b.slug] || "📚",
+      }))
     : fallbackBranches;
 
   const visible = showAll ? branches : branches.slice(0, INITIAL_COUNT);
