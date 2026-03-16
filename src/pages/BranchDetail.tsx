@@ -344,28 +344,40 @@ const BranchDetail = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoadingStudents(true);
-      // Find the branch in DB by slug
-      let branchQuery = supabase
-        .from("branches")
-        .select("id, name")
-        .eq("slug", branchSlug || "");
-      if (collegeId) branchQuery = branchQuery.eq("college_id", collegeId);
-      const { data: branchData } = await branchQuery.maybeSingle();
 
-      // Fetch students
+      // 1. Find the main branch in new global table by slug
+      const { data: mainBranchRow } = await supabase
+        .from("main_branches" as any)
+        .select("id, name, slug")
+        .eq("slug", branchSlug || "")
+        .maybeSingle();
+
+      // 2. Also find old per-college branch (for events + featured students backward compat)
+      let oldBranchId: string | null = null;
+      if (collegeId) {
+        const { data: oldBranch } = await supabase
+          .from("branches")
+          .select("id")
+          .eq("slug", branchSlug || "")
+          .eq("college_id", collegeId)
+          .maybeSingle();
+        oldBranchId = oldBranch?.id || null;
+      }
+
+      // 3. Fetch students — filter by main_branch_id from new table
       let query = supabase
         .from("students")
-        .select("*, branches(name, slug)")
+        .select("*, main_branch:main_branches(name, slug), specialization:specializations(name), branches(name, slug)")
         .order("created_at", { ascending: false });
       if (collegeId) query = query.eq("college_id", collegeId);
-      if (branchData?.id) query = query.eq("branch_id", branchData.id);
+      if (mainBranchRow?.id) query = query.eq("main_branch_id", (mainBranchRow as any).id);
 
       const { data } = await query;
       if (data && data.length > 0) {
         setDbStudents(data.map((s: any) => ({
           id: s.id,
           name: s.name,
-          dept: s.branches?.name || meta.label,
+          dept: s.main_branch?.name || s.branches?.name || meta.label,
           year: s.graduation_year ? String(s.graduation_year) : "—",
           title: s.bio || "Student",
           skills: s.skills || [],
@@ -376,12 +388,13 @@ const BranchDetail = () => {
         setDbStudents([]);
       }
 
-      // Fetch events for this branch
-      if (branchData?.id) {
+      // 4. Fetch events — use old branch_id (events still reference old branches table)
+      const eventBranchId = oldBranchId;
+      if (eventBranchId) {
         const { data: eventsData } = await supabase
           .from("events")
           .select("*")
-          .eq("branch_id", branchData.id)
+          .eq("branch_id", eventBranchId)
           .order("date", { ascending: true });
         if (eventsData) {
           setBranchEvents(eventsData.map((e: any) => ({
@@ -391,12 +404,14 @@ const BranchDetail = () => {
             date: e.date ? new Date(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBA",
           })));
         }
+      }
 
-        // Fetch featured students
+      // 5. Fetch featured students — use old branch_id (branch_featured_students still references old branches)
+      if (oldBranchId) {
         const { data: featured } = await supabase
           .from("branch_featured_students" as any)
           .select("*, students(id, name, avatar_url, skills, bio, graduation_year)")
-          .eq("branch_id", branchData.id)
+          .eq("branch_id", oldBranchId)
           .order("sort_order");
         if (featured) {
           setFeaturedStudents(featured.map((f: any) => ({
