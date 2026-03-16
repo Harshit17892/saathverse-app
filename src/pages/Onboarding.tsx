@@ -8,7 +8,7 @@ import { GraduationCap, Sparkles, Camera, X, Briefcase, ChevronDown, Shield } fr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { branchesData, getSubBranches } from "@/data/branchesData";
+import { branchesData, getSubBranches, degreeLevels } from "@/data/branchesData";
 import ImageCropper from "@/components/ImageCropper";
 
 const years = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "N/A"];
@@ -23,6 +23,7 @@ export default function Onboarding() {
   const [fullName, setFullName] = useState("");
   const [mainBranch, setMainBranch] = useState("");
   const [subBranch, setSubBranch] = useState("");
+  const [degreeLevel, setDegreeLevel] = useState<"UG" | "PG" | "PhD" | "">("" );
   const [yearOfStudy, setYearOfStudy] = useState("");
   const [isAlumni, setIsAlumni] = useState(false);
   const [company, setCompany] = useState("");
@@ -143,9 +144,26 @@ export default function Onboarding() {
     }
 
     // Save mainBranch (not subBranch) to profiles.branch so it matches branches.name in DB
+    // Also look up main_branch_id and specialization_id from new tables
+    let mainBranchId: string | null = null;
+    let specializationId: string | null = null;
+    if (mainBranch && !isAdminInvite) {
+      const { data: mbRow } = await supabase
+        .from("main_branches" as any).select("id").eq("name", mainBranch).maybeSingle();
+      if (mbRow) mainBranchId = (mbRow as any).id;
+    }
+    if (subBranch && mainBranchId) {
+      const { data: spRow } = await supabase
+        .from("specializations" as any).select("id").eq("name", subBranch).eq("branch_id", mainBranchId).maybeSingle();
+      if (spRow) specializationId = (spRow as any).id;
+    }
+
     const { error } = await supabase.from("profiles").update({
       full_name: fullName.trim(),
-      branch: isAdminInvite ? (designation || "Admin") : (mainBranch || null),
+      branch: isAdminInvite ? (designation || "Admin") : (subBranch || mainBranch || null),
+      main_branch_id: isAdminInvite ? null : mainBranchId,
+      specialization_id: isAdminInvite ? null : specializationId,
+      degree_level: isAdminInvite ? null : (degreeLevel || null),
       year_of_study: isAdminInvite ? null : (isAlumni ? "Alumni" : yearOfStudy || null),
       passout_year: isAdminInvite ? null : (isAlumni && passoutYear ? passoutYear : null),
       is_alumni: isAdminInvite ? false : isAlumni,
@@ -154,7 +172,7 @@ export default function Onboarding() {
       skills: isAdminInvite ? [] : skills,
       bio: isAdminInvite ? (designation || null) : (bio || null),
       photo_url: photoUrl,
-    }).eq("user_id", user.id);
+    } as any).eq("user_id", user.id);
 
     if (error) { toast.error(error.message); setSubmitting(false); return; }
 
@@ -162,11 +180,6 @@ export default function Onboarding() {
     // so admin panel immediately sees branch/year data (no manual Sync needed)
     if (!isAdminInvite && college?.id) {
       try {
-        const { data: dbBranches } = await supabase
-          .from("branches").select("id, name")
-          .eq("college_id", college.id);
-        const branchId = dbBranches?.find((b: any) => b.name === mainBranch)?.id || null;
-
         // Convert year of study text to graduation year number
         const cy = new Date().getFullYear();
         let gradYear: number | null = null;
@@ -184,7 +197,8 @@ export default function Onboarding() {
           id: user.id,
           name: fullName.trim(),
           college_id: college.id,
-          branch_id: branchId,
+          main_branch_id: mainBranchId,
+          specialization_id: specializationId,
           branch_name: subBranch || mainBranch || null,
           email: user.email || null,
           graduation_year: gradYear,
@@ -192,7 +206,7 @@ export default function Onboarding() {
           skills: skills,
           avatar_url: photoUrl,
           status: isAlumni ? "alumni" : "active",
-        });
+        } as any);
       } catch (syncErr) {
         console.error("[Onboarding] Auto-sync to students failed:", syncErr);
       }
@@ -366,6 +380,19 @@ export default function Onboarding() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Degree Level */}
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Degree Level</label>
+                <div className="flex gap-3">
+                  {degreeLevels.map((d) => (
+                    <motion.button key={d} whileTap={{ scale: 0.95 }} onClick={() => setDegreeLevel(d === degreeLevel ? "" : d)}
+                      className={`flex-1 h-10 rounded-xl border text-xs font-medium transition-all ${degreeLevel === d ? "bg-accent/15 border-accent/40 text-accent" : "bg-secondary/30 border-border/30 text-muted-foreground"}`}>
+                      {d === "UG" ? "🎓 UG" : d === "PG" ? "📚 PG" : "🔬 PhD"}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
 
               {!isAlumni && (
                 <div>
