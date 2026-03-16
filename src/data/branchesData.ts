@@ -1,20 +1,30 @@
 export interface SubBranch {
   name: string;
 }
-
 export interface MainBranch {
   name: string;
   slug: string;
   icon: string;
   subBranches: SubBranch[];
 }
-
 export const branchesData: MainBranch[] = [
   {
     name: "Diploma",
     slug: "diploma",
     icon: "📐",
     subBranches: [
+      { name: "Diploma in Engineering" },
+      { name: "Polytechnic" },
+      { name: "Diploma in Computer Applications" },
+      { name: "Diploma in Mechanical Engineering" },
+      { name: "Diploma in Electrical Engineering" },
+      { name: "Diploma in Civil Engineering" },
+      { name: "Diploma in Electronics & Communication" },
+      { name: "Diploma in Automobile Engineering" },
+      { name: "Diploma in Architecture Assistantship" },
+      { name: "Diploma in Pharmacy" },
+      { name: "Diploma in Medical Lab Technology" },
+      { name: "Skill-based Diplomas" },
       { name: "Telecom" },
       { name: "Electronic Manufacturing" },
       { name: "Agriculture Processing" },
@@ -51,6 +61,10 @@ export const branchesData: MainBranch[] = [
     slug: "engineering-technology",
     icon: "⚙️",
     subBranches: [
+      { name: "Computer Science Engineering" },
+      { name: "Information Technology" },
+      { name: "Artificial Intelligence & Data Science" },
+      { name: "Electronics & Communication Engineering" },
       { name: "Computer Science and Engineering" },
       { name: "Computer Science and Engineering (Data Science)" },
       { name: "Computer Science and Engineering (Cyber Security and Digital Forensic)" },
@@ -84,9 +98,17 @@ export const branchesData: MainBranch[] = [
       { name: "Power System Engineering" },
       { name: "Communication Engineering (Satellite Communication)" },
       { name: "Mechanical Engineering" },
+      { name: "Civil Engineering" },
+      { name: "Chemical Engineering" },
+      { name: "Aerospace Engineering" },
+      { name: "Automobile Engineering" },
       { name: "Mechanical Engineering (E-Vehicles & Autonomous Vehicles)" },
       { name: "Robotics" },
       { name: "Mechatronics Engineering" },
+      { name: "Biotechnology Engineering" },
+      { name: "Robotics Engineering" },
+      { name: "Cyber Security" },
+      { name: "Internet of Things (IoT)" },
       { name: "Industrial & Production Engineering" },
       { name: "Mechanical Engineering (CAD/CAM & Robotics)" },
       { name: "Aerospace Technology" },
@@ -104,6 +126,18 @@ export const branchesData: MainBranch[] = [
     slug: "medical",
     icon: "🩺",
     subBranches: [
+      { name: "MBBS" },
+      { name: "BDS" },
+      { name: "BAMS" },
+      { name: "BHMS" },
+      { name: "BUMS" },
+      { name: "BSMS" },
+      { name: "Veterinary Science" },
+      { name: "Physiotherapy" },
+      { name: "Occupational Therapy" },
+      { name: "Public Health" },
+      { name: "Medical Imaging" },
+      { name: "Emergency Medicine" },
       { name: "Medical Biotechnology" },
       { name: "Healthcare and Clinical Research" },
       { name: "Clinical Nutrition & Dietetics" },
@@ -125,9 +159,17 @@ export const branchesData: MainBranch[] = [
     slug: "science",
     icon: "🔬",
     subBranches: [
+      { name: "Physics" },
+      { name: "Chemistry" },
+      { name: "Mathematics" },
+      { name: "Statistics" },
+      { name: "Biology" },
+      { name: "Biotechnology" },
       { name: "ZBC (Zoology, Botany, Chemistry)" },
       { name: "Biomedical Science" },
       { name: "Microbiology" },
+      { name: "Environmental Science" },
+      { name: "Data Science" },
       { name: "Zoology" },
       { name: "Biochemistry" },
       { name: "Biological Science" },
@@ -138,6 +180,8 @@ export const branchesData: MainBranch[] = [
       { name: "Forensic Photography" },
       { name: "Graphology and Personality Profiling" },
       { name: "Forensic Science" },
+      { name: "Life Sciences" },
+      { name: "Computer Science" },
       { name: "Questioned Documents and Fingerprints" },
       { name: "Forensic Biology and Serology" },
       { name: "Forensic Toxicology and Explosives" },
@@ -165,6 +209,16 @@ export const branchesData: MainBranch[] = [
     slug: "commerce",
     icon: "📊",
     subBranches: [
+      { name: "Accounting" },
+      { name: "Finance" },
+      { name: "Taxation" },
+      { name: "Banking" },
+      { name: "Insurance" },
+      { name: "Auditing" },
+      { name: "Economics" },
+      { name: "Business Analytics" },
+      { name: "International Trade" },
+      { name: "E-Commerce" },
       { name: "Commerce (General)" },
       { name: "International Accounting & Finance" },
       { name: "Applied Finance and Analytics" },
@@ -180,8 +234,15 @@ export const branchesData: MainBranch[] = [
     slug: "management",
     icon: "📈",
     subBranches: [
+      { name: "Marketing" },
+      { name: "Finance" },
+      { name: "Human Resource Management" },
+      { name: "Operations Management" },
+      { name: "Supply Chain Management" },
       { name: "Business Administration (General)" },
       { name: "Business Analytics" },
+      { name: "Entrepreneurship" },
+      { name: "International Business" },
       { name: "Marketing and Automobile Management" },
       { name: "Digital Marketing" },
       { name: "ACCA" },
@@ -198,6 +259,9 @@ export const branchesData: MainBranch[] = [
       { name: "Agribusiness Management" },
       { name: "Rural Management" },
       { name: "Healthcare Management" },
+      { name: "Hotel & Hospitality Management" },
+      { name: "Event Management" },
+      { name: "Sports Management" },
     ],
   },
   {
@@ -205,8 +269,18 @@ export const branchesData: MainBranch[] = [
     slug: "arts-humanities",
     icon: "🎨",
     subBranches: [
+      { name: "History" },
+      { name: "Political Science" },
+      { name: "Sociology" },
       { name: "Psychology" },
       { name: "Economics" },
+      { name: "Geography" },
+      { name: "Philosophy" },
+      { name: "English Literature" },
+      { name: "Languages" },
+      { name: "Journalism" },
+      { name: "Mass Communication" },
+      { name: "Public Administration" },
       { name: "Political Science" },
       { name: "Sociology" },
       { name: "Liberal Arts" },
@@ -243,8 +317,16 @@ export const branchesData: MainBranch[] = [
       { name: "Law" },
       { name: "Constitutional Law and Governance" },
       { name: "Corporate Law" },
+      { name: "Criminal Law" },
+      { name: "Civil Law" },
+      { name: "Constitutional Law" },
+      { name: "International Law" },
+      { name: "Cyber Law" },
+      { name: "Intellectual Property Law" },
       { name: "Criminal Law & Criminal Justice" },
       { name: "Environmental Law" },
+      { name: "Labour Law" },
+      { name: "Tax Law" },
       { name: "Intellectual Property Law" },
       { name: "Law and Emerging Technology" },
     ],
@@ -254,6 +336,14 @@ export const branchesData: MainBranch[] = [
     slug: "education",
     icon: "📚",
     subBranches: [
+      { name: "Teacher Education" },
+      { name: "Early Childhood Education" },
+      { name: "Special Education" },
+      { name: "Educational Psychology" },
+      { name: "Educational Technology" },
+      { name: "Curriculum & Instruction" },
+      { name: "Educational Administration" },
+      { name: "Physical Education" },
       { name: "Education" },
     ],
   },
@@ -263,13 +353,6 @@ export const branchesData: MainBranch[] = [
     icon: "🏛️",
     subBranches: [
       { name: "Architecture" },
-      { name: "Urban Planning" },
-      { name: "Town & Regional Planning" },
-      { name: "Landscape Architecture" },
-      { name: "Interior Architecture" },
-      { name: "Construction Planning" },
-      { name: "Housing & Infrastructure Planning" },
-    ],
   },
   {
     name: "Design",
@@ -277,6 +360,14 @@ export const branchesData: MainBranch[] = [
     icon: "✏️",
     subBranches: [
       { name: "Fashion Design" },
+      { name: "Product Design" },
+      { name: "Industrial Design" },
+      { name: "Graphic Design" },
+      { name: "UI/UX Design" },
+      { name: "Animation" },
+      { name: "Game Design" },
+      { name: "Interior Design" },
+      { name: "Textile Design" },
       { name: "Interior & Spatial Design" },
       { name: "Advertising, Graphics & Web Design" },
       { name: "Communication Design" },
@@ -292,8 +383,16 @@ export const branchesData: MainBranch[] = [
     subBranches: [
       { name: "Agriculture" },
       { name: "Agronomy" },
+      { name: "Horticulture" },
       { name: "Entomology" },
       { name: "Soil Science" },
+      { name: "Agricultural Engineering" },
+      { name: "Agricultural Economics" },
+      { name: "Forestry" },
+      { name: "Fisheries Science" },
+      { name: "Dairy Technology" },
+      { name: "Food Technology" },
+      { name: "Agribusiness Management" },
       { name: "Fruit Science" },
       { name: "Genetics and Plant Breeding" },
       { name: "Plant Pathology" },
@@ -305,10 +404,15 @@ export const branchesData: MainBranch[] = [
     slug: "pharmacy",
     icon: "💊",
     subBranches: [
+      { name: "Pharmaceutics" },
       { name: "Pharmacy (General)" },
       { name: "Pharmaceutical Chemistry" },
       { name: "Pharmaceutics" },
       { name: "Pharmacology" },
+      { name: "Pharmacognosy" },
+      { name: "Clinical Pharmacy" },
+      { name: "Industrial Pharmacy" },
+      { name: "Pharmaceutical Analysis" },
       { name: "Regulatory Affairs" },
       { name: "Pharmaceutical Analysis" },
       { name: "Pharmaceutical Management" },
@@ -319,6 +423,17 @@ export const branchesData: MainBranch[] = [
     slug: "nursing-paramedical",
     icon: "🏥",
     subBranches: [
+      { name: "General Nursing" },
+      { name: "Midwifery" },
+      { name: "Critical Care Nursing" },
+      { name: "Pediatric Nursing" },
+      { name: "Psychiatric Nursing" },
+      { name: "Medical Laboratory Technology" },
+      { name: "Radiology & Imaging Technology" },
+      { name: "Operation Theatre Technology" },
+      { name: "Anesthesia Technology" },
+      { name: "Dialysis Technology" },
+      { name: "Emergency & Trauma Care" },
       { name: "Nursing" },
       { name: "Advanced Music Therapy" },
       { name: "Physiotherapy" },
@@ -336,6 +451,10 @@ export const branchesData: MainBranch[] = [
     slug: "computer-applications",
     icon: "💻",
     subBranches: [
+      { name: "Computer Applications" },
+      { name: "Software Development" },
+      { name: "Web Development" },
+      { name: "Mobile App Development" },
       { name: "Computer Science" },
       { name: "Computer Science (Cloud Computing)" },
       { name: "Computer Science (Cyber Security)" },
@@ -347,6 +466,12 @@ export const branchesData: MainBranch[] = [
       { name: "Cloud Computing and Virtualization" },
       { name: "Computer Networks & Cyber Security" },
       { name: "Data Analytics" },
+      { name: "Artificial Intelligence" },
+      { name: "Machine Learning" },
+      { name: "Cloud Computing" },
+      { name: "Cyber Security" },
+      { name: "Blockchain Technology" },
+      { name: "Game Development" },
       { name: "Multimedia and Animation" },
       { name: "Web Designing & Security" },
       { name: "Artificial Intelligence (Fintech and Banking Innovation)" },
@@ -363,22 +488,17 @@ export const branchesData: MainBranch[] = [
     ],
   },
 ];
-
 export const getAllMainBranches = () => branchesData.map((b) => b.name);
-
 export const getSubBranches = (mainBranch: string) => {
   const branch = branchesData.find((b) => b.name === mainBranch);
   return branch ? branch.subBranches.map((sb) => sb.name) : [];
 };
-
 export const getBranchBySlug = (slug: string) => {
   return branchesData.find((b) => b.slug === slug) || null;
 };
-
 export const getBranchSlug = (name: string) => {
   const branch = branchesData.find((b) => b.name === name);
   return branch ? branch.slug : name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 };
-
 export const degreeLevels = ["UG", "PG", "PhD"] as const;
 export type DegreeLevel = typeof degreeLevels[number];
