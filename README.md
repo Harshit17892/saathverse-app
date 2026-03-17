@@ -1,73 +1,60 @@
-# Welcome to your Lovable project
+# SaathVerse
 
-## Project info
+SaathVerse is a student collaboration and campus innovation platform built to help college students connect, build, and grow together.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🌐 Live URL
 
-## How can I edit this code?
+*https://www.saathverse.com*
 
-There are several ways of editing your application.
+## 🚀 Project Idea
 
-**Use Lovable**
+College students often struggle to find the right teammates, discover relevant opportunities, and turn ideas into real projects.  
+SaathVerse solves this by creating one unified platform where students can:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- Connect with peers from their college/community
+- Form teams for hackathons and startup ideas
+- Discover events, competitions, and opportunities
+- Collaborate on projects with shared goals
 
-Changes made via Lovable will be committed automatically to this repo.
+## ⚙️ How SaathVerse Works
 
-**Use your preferred IDE**
+SaathVerse brings multiple campus-focused workflows into one place:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- *Student Networking* – discover and connect with like-minded students
+- *Team Formation* – find teammates based on skills and interests
+- *Hackathon Support* – discover hackathons and track participation
+- *Startup Collaboration* – post ideas, validate them, and build teams
+- *College Ecosystem* – enable student, admin, and community interactions
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## 🛠️ Tech Stack
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- *Vite*
+- *TypeScript*
+- *React*
+- *Tailwind CSS*
+- *shadcn/ui*
+- *Supabase*
 
-## How can I deploy this project?
+## 💻 Local Development
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Prerequisites
 
-## Can I connect a custom domain to my Lovable project?
+- Node.js + npm installed  
+  (Recommended: [nvm](https://github.com/nvm-sh/nvm#installing-and-updating))
 
-Yes, you can!
+### Run locally
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```sh
+# 1) Clone the repository
+git clone <YOUR_GIT_URL>
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+# 2) Enter project folder
+cd <YOUR_PROJECT_NAME>
+
+# 3) Install dependencies
+npm install
+
+# 4) Start development server
+npm run
