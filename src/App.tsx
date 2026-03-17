@@ -29,6 +29,8 @@ import AuthCallback from "./pages/AuthCallback";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Gamification from "./pages/Gamification";
+import AdminSetup from "./pages/AdminSetup";
+import CompleteProfile from "./pages/CompleteProfile";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +67,8 @@ const App = () => (
             <Route path="/clubs/:clubSlug" element={<ProtectedRoute><ClubDetailPage /></ProtectedRoute>} />
             <Route path="/club/dashboard" element={<ProtectedRoute><ClubLeaderDashboard /></ProtectedRoute>} />
             <Route path="/gamification" element={<ProtectedRoute><Gamification /></ProtectedRoute>} />
+            <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
+            <Route path="/admin-setup" element={<ProtectedRoute><AdminSetup /></ProtectedRoute>} />
 
             {/* Admin routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
