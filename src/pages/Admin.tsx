@@ -427,84 +427,45 @@ const Admin = () => {
       const email = adminEmail.trim().toLowerCase();
       const activeCol = colleges.find((c: any) => c.id === activeCollegeId);
       const collegeName = activeCol?.name || "your college";
-      
-      // Check for duplicate invite
-      const { data: existingInvite } = await supabase
+
+      // Frontend 3-admin limit check (count pending + accepted invites for this college)
+      const { count: adminCount, error: countErr } = await supabase
         .from("pending_admin_invites" as any)
-        .select("id")
-        .eq("email", email)
+        .select("*", { count: "exact", head: true })
         .eq("college_id", activeCollegeId)
-        .maybeSingle();
-      
-      if (existingInvite) {
-        toast({ title: "Already invited", description: `${email} already has a pending/accepted invite for this college.` });
+        .in("status", ["pending", "accepted"]);
+
+      if (countErr) throw countErr;
+
+      if ((adminCount || 0) >= 3) {
+        toast({
+          title: "Maximum 3 college admins allowed per college",
+          description: `${collegeName} already has ${adminCount} admin(s). Remove an existing admin first.`,
+          variant: "destructive",
+        });
         setAssigningAdmin(false);
         return;
       }
 
-      // Generate a random password
-      const genPassword = () => {
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$!";
-        return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-      };
-      const tempPassword = genPassword();
-
-      // Create the user account via Supabase Auth — this sends a verification email automatically
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: email.split("@")[0],
-            college_id: activeCollegeId,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      // Call the invite-admin edge function
+      const { data: fnData, error: fnError } = await supabase.functions.invoke("invite-admin", {
+        body: { email, college_id: activeCollegeId, college_name: collegeName },
       });
 
-      if (signUpError) {
-        // If user already exists, that's okay — just create the invite
-        if (signUpError.message?.includes("already registered") || signUpError.message?.includes("already been registered")) {
-          // User exists, save invite record and assign role
-          await supabase.from("pending_admin_invites" as any).insert({
-            email,
-            college_id: activeCollegeId,
-            invited_by: user?.id,
-            status: "pending",
-          });
-          toast({ 
-            title: `✅ Invite saved for ${email}!`, 
-            description: `This user already has an account. They'll get admin access for ${collegeName} on their next login.` 
-          });
-        } else {
-          throw signUpError;
-        }
-      } else {
-        // Account created successfully — save invite record
-        const newUserId = signUpData.user?.id;
-        
-        await supabase.from("pending_admin_invites" as any).insert({
-          email,
-          college_id: activeCollegeId,
-          invited_by: user?.id,
-          status: newUserId ? "accepted" : "pending",
-        });
+      if (fnError) throw fnError;
 
-        // If we got a user ID, assign the role directly
-        if (newUserId) {
-          await supabase.from("user_roles").insert({
-            user_id: newUserId,
-            role: "college_admin" as any,
-            college_id: activeCollegeId,
-          });
-        }
-
-        toast({ 
-          title: `✅ Account created & verification email sent!`, 
-          description: `A verification email has been sent to ${email}. Once they verify and log in, they'll be asked to complete their profile and will have admin access for ${collegeName}.`,
-        });
+      // The edge function returns { error: "..." } on validation failures
+      if (fnData?.error) {
+        toast({ title: "Error", description: fnData.error, variant: "destructive" });
+        setAssigningAdmin(false);
+        return;
       }
-      
+
+      const successMsg = fnData?.already_registered
+        ? `${email} already has an account — assigned as college admin directly.`
+        : `Invite sent to ${email}. They'll receive an email with instructions to set up their admin account for ${collegeName}.`;
+
+      toast({ title: "✅ Success!", description: successMsg });
       setAdminEmail("");
       fetchCollegeAdmins();
     } catch (e: any) {
@@ -514,19 +475,28 @@ const Admin = () => {
   };
 
   const handleRemoveCollegeAdmin = async (roleId: string, type: string, adminEmail?: string, collegeId?: string) => {
+    const confirmMsg = type === "pending"
+      ? "Are you sure you want to revoke this pending invite?"
+      : "Are you sure you want to remove this college admin? They will immediately lose admin access.";
+    if (!window.confirm(confirmMsg)) return;
+
     try {
       if (type === "pending") {
-        const { error } = await supabase.from("pending_admin_invites" as any).delete().eq("id", roleId);
+        // Mark the pending invite as rejected (preserve the row for history)
+        const { error } = await supabase
+          .from("pending_admin_invites" as any)
+          .update({ status: "rejected", updated_at: new Date().toISOString() })
+          .eq("id", roleId);
         if (error) throw error;
       } else {
-        // Remove the user_role
+        // Remove the user_role so they lose admin access immediately
         const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
         if (error) throw error;
-        // Also clean up the corresponding accepted invite if it exists
+        // Mark the corresponding invite as rejected (preserve the row)
         if (adminEmail && collegeId) {
           await supabase
             .from("pending_admin_invites" as any)
-            .delete()
+            .update({ status: "rejected", updated_at: new Date().toISOString() })
             .eq("email", adminEmail.toLowerCase())
             .eq("college_id", collegeId);
         }
@@ -1450,7 +1420,7 @@ const Admin = () => {
                         <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                           branchFilter === "none" ? "bg-destructive-foreground/20" : "bg-muted text-muted-foreground"
                         }`}>
-                          {(students || []).filter((s: any) => !s.main_branch_id && !s.main_branch).length}}
+                          {(students || []).filter((s: any) => !s.main_branch_id && !s.main_branch).length}
                         </span>
                       </motion.button>
                     )}
@@ -1502,7 +1472,9 @@ const Admin = () => {
                         </button>
                       ))}
                     </div>
-                                <DataTable columns={["", "Name", "Email", "Branch", "Year", "Status", "XP"]}
+                  </div>
+                </div>
+                <DataTable columns={["", "Name", "Email", "Branch", "Year", "Status", "XP"]}
                   rows={(students || [])
                     .filter((s: any) => {
                       if (branchFilter === "none") return !s.main_branch_id && !s.main_branch;
@@ -1533,7 +1505,7 @@ const Admin = () => {
                         <img key="avatar" src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || "?")}&background=7c3aed&color=fff&size=32`} alt="" className="h-8 w-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-primary transition-all" onClick={(e) => { e.stopPropagation(); setEnlargedImage(s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name || "?")}&background=7c3aed&color=fff&size=200`); }} />,
                         s.name, s.email || "-", s.main_branch?.name || s.branches?.name || s.branch_name || "-", s.graduation_year || "-", <StatusBadge key="s" status={s.status} />, s.xp_points || 0
                       ], raw: s,
-                    }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />te={(id) => handleDelete(id)} />
+                    }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
               </>
             )}
             {section === "events" && (
