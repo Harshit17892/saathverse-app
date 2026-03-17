@@ -46,7 +46,8 @@ export const ProtectedRoute = ({ children, adminOnly = false }: { children: Reac
   // Redirect to onboarding if profile is incomplete (but not if already on onboarding)
   if (
     (!profile.full_name || profile.full_name.trim() === "") &&
-    location.pathname !== "/onboarding"
+    location.pathname !== "/onboarding" &&
+    location.pathname !== "/admin-setup"
   ) {
     return <Navigate to="/onboarding" replace />;
   }
