@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
         invited_as: "college_admin",
         college_name: college_name || "your college",
       },
-      redirectTo: `https://webdesignsv.lovable.app/onboarding`,
+      redirectTo: `${Deno.env.get("SITE_URL") || "https://saathverse.com"}/auth/callback`,
     });
 
     if (authErr) {
