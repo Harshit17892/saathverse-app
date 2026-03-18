@@ -50,6 +50,18 @@ const AuthCallback = () => {
     };
 
     const redirectBasedOnProfile = async (userId: string) => {
+      // Get user email for invite lookup
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const userEmail = authUser?.email?.toLowerCase() || "";
+
+      // Check if user has a pending admin invite
+      const { data: pendingInvite } = await supabase
+        .from("pending_admin_invites" as any)
+        .select("id, status, college_id")
+        .eq("email", userEmail)
+        .eq("status", "pending")
+        .maybeSingle();
+
       // Check if user has a complete profile
       const { data: profile } = await supabase
         .from("profiles")
@@ -62,8 +74,21 @@ const AuthCallback = () => {
         !profile.branch ||
         !profile.year_of_study;
 
-      if (isProfileIncomplete) {
-        // New user or invited admin — needs to complete their profile
+      if (pendingInvite) {
+        // Invited admin
+        if (isProfileIncomplete) {
+          // Needs to complete admin setup
+          setStatus("success");
+          setMessage("Invite verified! Let's set up your admin account…");
+          setTimeout(() => navigate("/admin-setup", { replace: true }), 1200);
+        } else {
+          // Profile already complete — go straight to admin
+          setStatus("success");
+          setMessage("Welcome back, admin! Redirecting…");
+          setTimeout(() => navigate("/admin", { replace: true }), 1200);
+        }
+      } else if (isProfileIncomplete) {
+        // Regular user with incomplete profile
         setStatus("success");
         setMessage("Email verified! Let's set up your profile…");
         setTimeout(() => navigate("/complete-profile", { replace: true }), 1200);
