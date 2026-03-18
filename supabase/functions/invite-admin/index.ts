@@ -24,32 +24,50 @@ Deno.serve(async (req) => {
       });
     }
 
-    const token = authHeader.replace("Bearer ", "");
-
-    // Validate caller using getClaims (works with ES256 signing keys)
+    // Validate caller using getUser (more reliable in Edge runtime)
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      console.error("Claims validation failed:", claimsError);
+
+    const {
+      data: { user: callerUser },
+      error: userErr,
+    } = await callerClient.auth.getUser();
+
+    if (userErr || !callerUser) {
+      console.error("Caller auth failed:", userErr);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const callerId = claimsData.claims.sub as string;
+    const callerId = callerUser.id;
     console.log("Authenticated caller:", callerId);
 
-    // Check caller is admin using service role client
+    // Check caller is admin OR super_admin using service role client
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: isAdmin } = await adminClient.rpc("has_role", {
+
+    const { data: isAdmin, error: adminRoleErr } = await adminClient.rpc("has_role", {
       _user_id: callerId,
       _role: "admin",
     });
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Not an admin" }), {
+
+    const { data: isSuperAdmin, error: superRoleErr } = await adminClient.rpc("has_role", {
+      _user_id: callerId,
+      _role: "super_admin",
+    });
+
+    if (adminRoleErr || superRoleErr) {
+      console.error("Role check failed:", { adminRoleErr, superRoleErr });
+      return new Response(JSON.stringify({ error: "Role check failed" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: "Not authorized" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -65,10 +83,12 @@ Deno.serve(async (req) => {
     }
 
     // Check if this exact email+college already has a pending invite
+    const normalizedEmail = email.toLowerCase().trim();
+
     const { data: existingInvite } = await adminClient
       .from("pending_admin_invites")
       .select("id, status")
-      .eq("email", email.toLowerCase().trim())
+      .eq("email", normalizedEmail)
       .eq("college_id", college_id)
       .maybeSingle();
 
@@ -79,12 +99,8 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // If pending, delete old one and re-create (allows re-sending)
-      if (existingInvite.status === "pending") {
-        await adminClient.from("pending_admin_invites").delete().eq("id", existingInvite.id);
-      }
-      // If rejected, delete and allow re-invite
-      if (existingInvite.status === "rejected") {
+      // If pending/rejected, delete old one and re-create (allows re-sending)
+      if (existingInvite.status === "pending" || existingInvite.status === "rejected") {
         await adminClient.from("pending_admin_invites").delete().eq("id", existingInvite.id);
       }
     }
@@ -107,7 +123,7 @@ Deno.serve(async (req) => {
     const { error: inviteErr } = await adminClient
       .from("pending_admin_invites")
       .insert({
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         college_id,
         role: "college_admin",
         invited_by: callerId,
@@ -124,7 +140,7 @@ Deno.serve(async (req) => {
     }
 
     // Send invite via Supabase Auth (creates user if not exists, sends email)
-    const { data: inviteData, error: authErr } = await adminClient.auth.admin.inviteUserByEmail(email, {
+    const { error: authErr } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
       data: {
         college_id,
         invited_as: "college_admin",
@@ -134,22 +150,32 @@ Deno.serve(async (req) => {
     });
 
     if (authErr) {
-      if (authErr.message?.includes("already been registered")) {
-        const { data: existingUser } = await adminClient.auth.admin.listUsers();
-        const found = existingUser?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase().trim()
+      // Existing account path: assign role directly
+      if (authErr.message?.toLowerCase().includes("already")) {
+        const { data: usersPage, error: listErr } = await adminClient.auth.admin.listUsers();
+        if (listErr) throw listErr;
+
+        const found = usersPage?.users?.find(
+          (u) => u.email?.toLowerCase() === normalizedEmail
         );
+
         if (found) {
-          await adminClient.from("user_roles").insert({
-            user_id: found.id,
-            role: "college_admin",
-            college_id,
-          }).select();
+          const { error: roleErr } = await adminClient
+            .from("user_roles")
+            .insert({
+              user_id: found.id,
+              role: "college_admin",
+              college_id,
+            });
+
+          if (roleErr && roleErr.code !== "23505") {
+            throw roleErr;
+          }
 
           await adminClient
             .from("pending_admin_invites")
             .update({ status: "accepted", updated_at: new Date().toISOString() })
-            .eq("email", email.toLowerCase().trim())
+            .eq("email", normalizedEmail)
             .eq("college_id", college_id);
 
           return new Response(JSON.stringify({
@@ -161,18 +187,23 @@ Deno.serve(async (req) => {
           });
         }
       }
+
       console.error("Auth invite error:", authErr);
+      return new Response(JSON.stringify({ error: authErr.message || "Failed to send invite" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Invite sent to ${email}`,
+      message: `Invite sent to ${normalizedEmail}`,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
