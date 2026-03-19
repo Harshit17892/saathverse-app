@@ -70,6 +70,11 @@ const ClubLeaderDashboard = () => {
   // Settings form
   const [settingsForm, setSettingsForm] = useState<any>({});
 
+  // Transfer leadership
+  const [transferTargetUserId, setTransferTargetUserId] = useState<string>("");
+  const [transferConfirmText, setTransferConfirmText] = useState<string>("");
+  const [transferring, setTransferring] = useState(false);
+
   // Registrations filter
   const [regEventFilter, setRegEventFilter] = useState<string>("all");
 
@@ -135,6 +140,8 @@ const ClubLeaderDashboard = () => {
 
   const pendingCount = requests.length;
   const activeMembers = members.filter(m => m.is_active);
+  const currentPresident = members.find(m => m.role === "President" && m.is_active);
+  const transferCandidates = members.filter(m => m.is_active && m.user_id !== currentPresident?.user_id);
   const upcomingEvents = events.filter(e => !e.date || new Date(e.date) >= new Date());
   const totalRegs = registrations.length;
 
@@ -267,6 +274,47 @@ const ClubLeaderDashboard = () => {
   const handleTogglePaid = async (regId: string, current: boolean) => {
     await supabase.from("club_event_registrations").update({ paid: !current }).eq("id", regId);
     setRegistrations(prev => prev.map(r => r.id === regId ? { ...r, paid: !current } : r));
+  };
+
+  const handleTransferLeadership = async () => {
+    if (!selectedClubId) return;
+
+    if (!currentPresident || currentPresident.user_id !== user?.id) {
+      toast({ title: "Error", description: "Only the current President can transfer leadership.", variant: "destructive" });
+      return;
+    }
+    if (!transferTargetUserId) {
+      toast({ title: "Error", description: "Please select a new leader.", variant: "destructive" });
+      return;
+    }
+    if (transferTargetUserId === user?.id) {
+      toast({ title: "Error", description: "You are already the President.", variant: "destructive" });
+      return;
+    }
+    if (transferConfirmText.trim().toUpperCase() !== "TRANSFER") {
+      toast({ title: "Confirmation required", description: "Type TRANSFER to confirm.", variant: "destructive" });
+      return;
+    }
+
+    setTransferring(true);
+    try {
+      const { data, error } = await supabase.rpc("transfer_club_leadership", {
+        p_club_id: selectedClubId,
+        p_new_leader_user_id: transferTargetUserId,
+      });
+      if (error) throw error;
+      const payload = data as any;
+      if (!payload?.success) {
+        toast({ title: "Transfer failed", description: "Unexpected response.", variant: "destructive" });
+      } else {
+        toast({ title: "Leadership transferred", description: "Redirecting to clubs..." });
+        navigate("/clubs");
+      }
+    } catch (e: any) {
+      toast({ title: "Transfer failed", description: e?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setTransferring(false);
+    }
   };
 
   const openEditEvent = (ev: any) => {
@@ -487,25 +535,69 @@ const ClubLeaderDashboard = () => {
 
         {/* SETTINGS */}
         {activeTab === "settings" && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-6 max-w-2xl space-y-4">
-            <h3 className="font-display text-lg font-bold text-foreground">Club Settings</h3>
-            <div className="space-y-3">
-              <div><label className="text-xs text-muted-foreground mb-1 block">Tagline</label>
-                <Input className={inputClass} value={settingsForm.tagline} onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })} /></div>
-              <div><label className="text-xs text-muted-foreground mb-1 block">Description</label>
-                <Textarea className={`${inputClass} min-h-[100px]`} value={settingsForm.description} onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })} /></div>
-              <div><label className="text-xs text-muted-foreground mb-1 block">Instagram</label>
-                <Input className={inputClass} value={settingsForm.instagram} onChange={(e) => setSettingsForm({ ...settingsForm, instagram: e.target.value })} /></div>
-              <div><label className="text-xs text-muted-foreground mb-1 block">LinkedIn</label>
-                <Input className={inputClass} value={settingsForm.linkedin} onChange={(e) => setSettingsForm({ ...settingsForm, linkedin: e.target.value })} /></div>
-              <div><label className="text-xs text-muted-foreground mb-1 block">Focus Tags (comma separated)</label>
-                <Input className={inputClass} value={settingsForm.focus_tags} onChange={(e) => setSettingsForm({ ...settingsForm, focus_tags: e.target.value })} /></div>
-              <div><label className="text-xs text-muted-foreground mb-1 block">Advisor</label>
-                <Input className={inputClass} value={settingsForm.advisor} onChange={(e) => setSettingsForm({ ...settingsForm, advisor: e.target.value })} /></div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-6 max-w-2xl space-y-6">
+            <div className="space-y-4">
+              <h3 className="font-display text-lg font-bold text-foreground">Club Settings</h3>
+              <div className="space-y-3">
+                <div><label className="text-xs text-muted-foreground mb-1 block">Tagline</label>
+                  <Input className={inputClass} value={settingsForm.tagline} onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground mb-1 block">Description</label>
+                  <Textarea className={`${inputClass} min-h-[100px]`} value={settingsForm.description} onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground mb-1 block">Instagram</label>
+                  <Input className={inputClass} value={settingsForm.instagram} onChange={(e) => setSettingsForm({ ...settingsForm, instagram: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground mb-1 block">LinkedIn</label>
+                  <Input className={inputClass} value={settingsForm.linkedin} onChange={(e) => setSettingsForm({ ...settingsForm, linkedin: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground mb-1 block">Focus Tags (comma separated)</label>
+                  <Input className={inputClass} value={settingsForm.focus_tags} onChange={(e) => setSettingsForm({ ...settingsForm, focus_tags: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground mb-1 block">Advisor</label>
+                  <Input className={inputClass} value={settingsForm.advisor} onChange={(e) => setSettingsForm({ ...settingsForm, advisor: e.target.value })} /></div>
+              </div>
+              <Button onClick={handleSaveSettings} className="bg-gradient-to-r from-primary to-accent text-primary-foreground">
+                <Save className="h-4 w-4 mr-2" /> Save Settings
+              </Button>
             </div>
-            <Button onClick={handleSaveSettings} className="bg-gradient-to-r from-primary to-accent text-primary-foreground">
-              <Save className="h-4 w-4 mr-2" /> Save Settings
-            </Button>
+
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
+              <h4 className="font-display text-base font-bold text-foreground">Transfer Leadership</h4>
+              <p className="text-xs text-muted-foreground">
+                Transfer the President role to another active member. Type TRANSFER to confirm.
+              </p>
+
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">New leader</label>
+                <select
+                  className="w-full bg-secondary/30 border border-border/30 rounded-lg px-3 py-2 text-sm text-foreground"
+                  value={transferTargetUserId}
+                  onChange={(e) => setTransferTargetUserId(e.target.value)}
+                  disabled={transferring}
+                >
+                  <option value="">Select member</option>
+                  {transferCandidates.map((m: any) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.name} ({m.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Type TRANSFER to confirm</label>
+                <Input
+                  className={inputClass}
+                  value={transferConfirmText}
+                  onChange={(e) => setTransferConfirmText(e.target.value)}
+                  disabled={transferring}
+                />
+              </div>
+
+              <Button
+                variant="destructive"
+                onClick={handleTransferLeadership}
+                disabled={transferring || !transferTargetUserId}
+              >
+                {transferring ? "Transferring..." : "Transfer Leadership"}
+              </Button>
+            </div>
           </motion.div>
         )}
       </div>
