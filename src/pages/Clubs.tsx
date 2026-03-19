@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useClubs } from "@/hooks/use-supabase-data";
 import { categories, categoryColors, categoryTextColors } from "@/data/clubsData";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Floating geometric shapes
 const FloatingShapes = () => (
@@ -78,6 +79,7 @@ const Clubs = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const { data: dbClubs = [], isLoading } = useClubs();
+  const { user } = useAuth();
 
   const filtered = dbClubs.filter((c: any) => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -118,6 +120,17 @@ const Clubs = () => {
                 </div>
               ))}
             </div>
+
+            {user && (
+              <div className="flex justify-center mb-8">
+                <Link
+                  to="/clubs/register"
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-primary to-accent text-primary-foreground text-sm font-semibold hover:opacity-95 transition-opacity"
+                >
+                  Register a New Club <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            )}
 
             <div className="relative max-w-lg mx-auto mb-8">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
