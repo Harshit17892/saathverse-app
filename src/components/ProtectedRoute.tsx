@@ -6,8 +6,16 @@ import { Activity } from "lucide-react";
 // Super admin emails — must match AuthContext
 const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
 
-export const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) => {
-  const { user, loading, isAdmin, isSuperAdmin, profile } = useAuth();
+export const ProtectedRoute = ({
+  children,
+  adminOnly = false,
+  coreTeamOnly = false,
+}: {
+  children: React.ReactNode;
+  adminOnly?: boolean;
+  coreTeamOnly?: boolean;
+}) => {
+  const { user, loading, isAdmin, isSuperAdmin, isCoreTeam, profile } = useAuth();
   const location = useLocation();
 
   // Detect super admin directly from email to avoid async timing issues
@@ -53,6 +61,8 @@ export const ProtectedRoute = ({ children, adminOnly = false }: { children: Reac
   }
 
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
+
+  if (coreTeamOnly && !(isCoreTeam || isAdmin || isSA)) return <Navigate to="/" replace />;
 
   return <>{children}</>;
 };
