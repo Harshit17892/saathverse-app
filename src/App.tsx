@@ -23,6 +23,8 @@ import PublicProfile from "./pages/PublicProfile";
 import Clubs from "./pages/Clubs";
 import ClubDetailPage from "./pages/ClubDetail";
 import ClubLeaderDashboard from "./pages/ClubLeaderDashboard";
+import CoreTeamDashboard from "./pages/CoreTeamDashboard";
+import RegisterClub from "./pages/RegisterClub";
 import SearchResults from "./pages/SearchResults";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./pages/AuthCallback";
@@ -64,8 +66,10 @@ const App = () => (
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile/:userId" element={<ProtectedRoute><PublicProfile /></ProtectedRoute>} />
             <Route path="/clubs" element={<ProtectedRoute><Clubs /></ProtectedRoute>} />
+            <Route path="/clubs/register" element={<ProtectedRoute><RegisterClub /></ProtectedRoute>} />
             <Route path="/clubs/:clubSlug" element={<ProtectedRoute><ClubDetailPage /></ProtectedRoute>} />
             <Route path="/club/dashboard" element={<ProtectedRoute><ClubLeaderDashboard /></ProtectedRoute>} />
+            <Route path="/core-team" element={<ProtectedRoute coreTeamOnly><CoreTeamDashboard /></ProtectedRoute>} />
             <Route path="/gamification" element={<ProtectedRoute><Gamification /></ProtectedRoute>} />
             <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
             <Route path="/admin-setup" element={<ProtectedRoute><AdminSetup /></ProtectedRoute>} />
