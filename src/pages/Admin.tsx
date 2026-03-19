@@ -47,6 +47,7 @@ import ClubDashboardSection from "@/components/admin/ClubDashboardSection";
 const sidebarSections = [
   { label: "Colleges", icon: Building2, key: "colleges", superOnly: true },
   { label: "College Admins", icon: Shield, key: "college_admins", superOnly: true },
+  { label: "Core Team", icon: Shield, key: "core_team", superOnly: true },
   { label: "Form Settings", icon: Settings2, key: "form_settings", superOnly: false },
   { label: "Students", icon: Users, key: "students" },
   { label: "Events", icon: Calendar, key: "events" },
@@ -88,6 +89,7 @@ const groupedSidebar: (SidebarItem | SidebarGroup)[] = [
   {
     groupLabel: "Clubs", icon: Layers, items: [
       { label: "Clubs", icon: Layers, key: "clubs" },
+      { label: "Club Proposals", icon: Layers, key: "club_proposals" },
       { label: "Club Dashboard", icon: Settings2, key: "club_dashboard" },
     ]
   },
@@ -351,6 +353,199 @@ const Admin = () => {
   const [collegeAdminsLoading, setCollegeAdminsLoading] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [assigningAdmin, setAssigningAdmin] = useState(false);
+
+  // Core Team management
+  const [coreTeamMembers, setCoreTeamMembers] = useState<any[]>([]);
+  const [coreTeamLoading, setCoreTeamLoading] = useState(false);
+  const [coreTeamQuery, setCoreTeamQuery] = useState("");
+  const [coreTeamSearchResults, setCoreTeamSearchResults] = useState<any[]>([]);
+  const [coreTeamSelectedUserId, setCoreTeamSelectedUserId] = useState<string>("");
+  const [assigningCoreTeam, setAssigningCoreTeam] = useState(false);
+  const [revokingCoreTeamId, setRevokingCoreTeamId] = useState<string | null>(null);
+
+  // Club proposals management
+  const [clubProposals, setClubProposals] = useState<any[]>([]);
+  const [clubProposalsLoading, setClubProposalsLoading] = useState(false);
+  const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
+  const [proposalRejectReason, setProposalRejectReason] = useState<Record<string, string>>({});
+
+  const fetchCoreTeam = async () => {
+    if (!activeCollegeId) return;
+    setCoreTeamLoading(true);
+    try {
+      const { data: roles, error: rErr } = await supabase
+        .from("user_roles")
+        .select("id, user_id, role, college_id")
+        .eq("role", "core_team" as any)
+        .eq("college_id", activeCollegeId);
+      if (rErr) throw rErr;
+
+      const userIds = (roles || []).map((r: any) => r.user_id);
+      let profilesMap: Record<string, any> = {};
+      if (userIds.length > 0) {
+        const { data: profiles, error: pErr } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, photo_url, branch")
+          .in("user_id", userIds);
+        if (pErr) throw pErr;
+        (profiles || []).forEach((p: any) => { profilesMap[p.user_id] = p; });
+      }
+      const enriched = (roles || []).map((r: any) => ({
+        ...r,
+        profile: profilesMap[r.user_id] || null,
+      }));
+      setCoreTeamMembers(enriched);
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to load core team.", variant: "destructive" });
+    } finally {
+      setCoreTeamLoading(false);
+    }
+  };
+
+  const fetchClubProposals = async () => {
+    if (!activeCollegeId) return;
+    setClubProposalsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("club_proposals")
+        .select("*")
+        .eq("college_id", activeCollegeId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setClubProposals(data || []);
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to load proposals.", variant: "destructive" });
+    } finally {
+      setClubProposalsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (section === "core_team" && isSuperAdmin) fetchCoreTeam();
+    if (section === "club_proposals") fetchClubProposals();
+  }, [section, isSuperAdmin, activeCollegeId]);
+
+  useEffect(() => {
+    if (section !== "core_team") return;
+    if (!activeCollegeId) return;
+    if (coreTeamQuery.trim().length < 2) {
+      setCoreTeamSearchResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const q = coreTeamQuery.trim();
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, branch, photo_url")
+        .eq("college_id", activeCollegeId)
+        .ilike("full_name", `%${q}%`)
+        .limit(8);
+      setCoreTeamSearchResults(data || []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [coreTeamQuery, section, activeCollegeId]);
+
+  const handleAssignCoreTeam = async () => {
+    if (!activeCollegeId || !coreTeamSelectedUserId) {
+      toast({ title: "Select a user", variant: "destructive" });
+      return;
+    }
+    setAssigningCoreTeam(true);
+    try {
+      const { error } = await supabase.from("user_roles").insert({
+        user_id: coreTeamSelectedUserId,
+        role: "core_team" as any,
+        college_id: activeCollegeId,
+      });
+      if (error && error.code !== "23505") throw error;
+      toast({ title: "Core team assigned" });
+      setCoreTeamSelectedUserId("");
+      setCoreTeamQuery("");
+      setCoreTeamSearchResults([]);
+      fetchCoreTeam();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to assign.", variant: "destructive" });
+    } finally {
+      setAssigningCoreTeam(false);
+    }
+  };
+
+  const handleRevokeCoreTeam = async (roleRowId: string) => {
+    if (!window.confirm("Revoke core team role for this user?")) return;
+    setRevokingCoreTeamId(roleRowId);
+    try {
+      const { error } = await supabase.from("user_roles").delete().eq("id", roleRowId);
+      if (error) throw error;
+      toast({ title: "Revoked" });
+      fetchCoreTeam();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to revoke.", variant: "destructive" });
+    } finally {
+      setRevokingCoreTeamId(null);
+    }
+  };
+
+  const handleApproveProposalAdmin = async (proposalId: string) => {
+    if (proposalBusyId) return;
+    setProposalBusyId(proposalId);
+    try {
+      const { data, error } = await supabase.rpc("approve_club_proposal", { p_proposal_id: proposalId });
+      if (error) throw error;
+      const payload = data as any;
+      if (!payload?.success && payload?.status === "already_processed") {
+        toast({ title: "Already processed", description: `Current status: ${payload.current_status}` });
+      } else if (payload?.success) {
+        toast({ title: "Approved" });
+      } else {
+        toast({ title: "Approval failed", description: "Unexpected response.", variant: "destructive" });
+      }
+      fetchClubProposals();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Approval failed.", variant: "destructive" });
+    } finally {
+      setProposalBusyId(null);
+    }
+  };
+
+  const handleRejectProposalAdmin = async (proposalId: string) => {
+    if (proposalBusyId) return;
+    const reason = (proposalRejectReason[proposalId] || "").trim();
+    if (!reason) {
+      toast({ title: "Reason required", description: "Enter a rejection reason.", variant: "destructive" });
+      return;
+    }
+    setProposalBusyId(proposalId);
+    try {
+      const { data, error } = await supabase.rpc("reject_club_proposal", { p_proposal_id: proposalId, p_reason: reason });
+      if (error) throw error;
+      const payload = data as any;
+      if (!payload?.success && payload?.status === "already_processed") {
+        toast({ title: "Already processed", description: `Current status: ${payload.current_status}` });
+      } else if (payload?.success) {
+        toast({ title: "Rejected" });
+      } else {
+        toast({ title: "Rejection failed", description: "Unexpected response.", variant: "destructive" });
+      }
+      fetchClubProposals();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Rejection failed.", variant: "destructive" });
+    } finally {
+      setProposalBusyId(null);
+    }
+  };
+
+  const handleSuspendClub = async (clubId: string) => {
+    if (!window.confirm("Suspend this club? It will be marked inactive.")) return;
+    try {
+      const { error } = await supabase.from("clubs").update({ is_active: false }).eq("id", clubId);
+      if (error) throw error;
+      toast({ title: "Club suspended" });
+      await queryClient.invalidateQueries({ queryKey: ["clubs"] });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to suspend.", variant: "destructive" });
+    }
+  };
 
   const fetchCollegeAdmins = async () => {
     setCollegeAdminsLoading(true);
@@ -915,6 +1110,7 @@ const Admin = () => {
               {[
                 { label: "Colleges", icon: Building2, key: "colleges" },
                 { label: "College Admins", icon: Shield, key: "college_admins" },
+                { label: "Core Team", icon: Shield, key: "core_team" },
               ].map((item) => (
                 <motion.button key={item.key} whileHover={{ x: 3 }} onClick={() => { setSection(item.key as Section); setSearch(""); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${section === item.key ? "bg-accent/15 text-accent border border-accent/20" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"}`}>
@@ -1352,6 +1548,113 @@ const Admin = () => {
             </motion.div>
           )}
 
+          {/* Core Team Section */}
+          {section === "core_team" && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-6 space-y-6">
+              <div>
+                <h3 className="font-display text-lg font-bold text-foreground">Core Team Management</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Assign or revoke core team access for the selected college.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl border border-accent/20 bg-accent/5 space-y-3">
+                <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-accent" /> Assign Core Team Member
+                </p>
+                <div className="space-y-2">
+                  <Input
+                    className={inputClass}
+                    placeholder="Search student by name..."
+                    value={coreTeamQuery}
+                    onChange={(e) => setCoreTeamQuery(e.target.value)}
+                    disabled={!activeCollegeId || assigningCoreTeam}
+                  />
+
+                  {coreTeamSearchResults.length > 0 && (
+                    <div className="border border-border/30 rounded-xl overflow-hidden">
+                      {coreTeamSearchResults.map((p: any) => (
+                        <button
+                          key={p.user_id}
+                          onClick={() => {
+                            setCoreTeamSelectedUserId(p.user_id);
+                            setCoreTeamQuery(p.full_name || "");
+                            setCoreTeamSearchResults([]);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-secondary/40 transition-colors ${
+                            coreTeamSelectedUserId === p.user_id ? "bg-primary/10" : ""
+                          }`}
+                        >
+                          <span className="text-foreground">{p.full_name || "Unknown"}</span>
+                          {p.branch && <span className="text-xs text-muted-foreground ml-2">• {p.branch}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={handleAssignCoreTeam}
+                    disabled={!activeCollegeId || !coreTeamSelectedUserId || assigningCoreTeam}
+                    className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl"
+                  >
+                    {assigningCoreTeam ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                    Assign
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-3">Current Core Team</p>
+                {coreTeamLoading ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                      <Activity className="h-5 w-5 mx-auto mb-2" />
+                    </motion.div>
+                    Loading...
+                  </div>
+                ) : coreTeamMembers.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground border border-border/20 rounded-xl">
+                    <Shield className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No core team members assigned yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {coreTeamMembers.map((m: any) => (
+                      <motion.div key={m.id} whileHover={{ x: 3 }}
+                        className="flex items-center justify-between p-3 rounded-xl border border-border/30 bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                        <div className="flex items-center gap-3">
+                          {m.profile?.photo_url ? (
+                            <img src={m.profile.photo_url} alt={m.profile?.full_name || "User"} className="h-9 w-9 rounded-full object-cover border border-border/30" />
+                          ) : (
+                            <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-accent-foreground bg-gradient-to-br from-accent to-primary">
+                              {(m.profile?.full_name || "C").charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{m.profile?.full_name || "Unknown User"}</p>
+                            {m.profile?.branch && <p className="text-[11px] text-muted-foreground">{m.profile.branch}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] border-accent/40 text-accent">Core Team</Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRevokeCoreTeam(m.id)}
+                            disabled={revokingCoreTeamId === m.id}
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
+                          >
+                            {revokingCoreTeamId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* Club Dashboard Section */}
           {section === "club_dashboard" && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -1360,6 +1663,75 @@ const Admin = () => {
           )}
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`glass rounded-2xl overflow-hidden ${section === "form_settings" || section === "college_admins" || section === "club_dashboard" ? "hidden" : ""}`}>
+            {section === "club_proposals" && (
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-display text-lg font-bold text-foreground">Club Proposals</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Pending proposals for the active college.</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs">{clubProposals.length}</Badge>
+                </div>
+
+                {clubProposalsLoading ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                      <Activity className="h-5 w-5 mx-auto mb-2" />
+                    </motion.div>
+                    Loading...
+                  </div>
+                ) : clubProposals.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground border border-border/20 rounded-xl">
+                    <Layers className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No pending proposals.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {clubProposals.map((p: any) => (
+                      <div key={p.id} className="rounded-2xl border border-border/30 bg-secondary/10 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-foreground font-semibold">{p.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{p.category} • {new Date(p.created_at).toLocaleDateString()}</p>
+                            {p.tagline && <p className="text-xs text-muted-foreground mt-2 italic">"{p.tagline}"</p>}
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">{p.status}</Badge>
+                        </div>
+
+                        {p.description && <p className="text-xs text-muted-foreground mt-3">{p.description}</p>}
+
+                        <div className="mt-4 space-y-2">
+                          <label className="text-xs text-muted-foreground block">Rejection reason</label>
+                          <Input
+                            className={inputClass}
+                            value={proposalRejectReason[p.id] || ""}
+                            onChange={(e) => setProposalRejectReason(prev => ({ ...prev, [p.id]: e.target.value }))}
+                            disabled={proposalBusyId === p.id}
+                            placeholder="Required to reject"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => handleApproveProposalAdmin(p.id)}
+                              disabled={!!proposalBusyId}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              {proposalBusyId === p.id ? "Working..." : "Approve"}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => handleRejectProposalAdmin(p.id)}
+                              disabled={!!proposalBusyId}
+                            >
+                              {proposalBusyId === p.id ? "Working..." : "Reject"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {section === "colleges" && (
               <DataTable columns={["Name", "Domain", "City", "State"]}
                 rows={colleges.filter((c: any) => (c.name || "").toLowerCase().includes(search.toLowerCase())).map((c: any) => ({
@@ -1533,9 +1905,22 @@ const Admin = () => {
                 }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
             )}
             {section === "clubs" && (
-              <DataTable columns={["Name", "Category", "Members", "Active", "Advisor"]}
+              <DataTable columns={["Name", "Category", "Members", "Active", "Advisor", "Suspend"]}
                 rows={(clubs || []).filter((c: any) => c.name.toLowerCase().includes(search.toLowerCase())).map((c: any) => ({
-                  id: c.id, cells: [c.name, <CategoryBadge key="c" category={c.category} />, c.members || 0, c.is_active !== false ? "✅" : "❌", c.advisor || "-"], raw: c,
+                  id: c.id, cells: [
+                    c.name,
+                    <CategoryBadge key="c" category={c.category} />,
+                    c.members || 0,
+                    c.is_active !== false ? "✅" : "❌",
+                    c.advisor || "-",
+                    c.is_active !== false ? (
+                      <Button key="s" size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); handleSuspendClub(c.id); }} className="h-7 text-[11px] px-2">
+                        Suspend
+                      </Button>
+                    ) : (
+                      <span key="s2" className="text-xs text-muted-foreground">—</span>
+                    ),
+                  ], raw: c,
                 }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
             )}
             {section === "alumni" && (
