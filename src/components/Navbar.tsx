@@ -39,7 +39,7 @@ const moreItems = [
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, college, isAdmin, signOut, profile, isSuperAdmin, activeCollegeId, collegeId } = useAuth();
+  const { user, college, isAdmin, isCoreTeam, signOut, profile, isSuperAdmin, activeCollegeId, collegeId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [badges, setBadges] = useState<{ requests: number; chat: number }>({ requests: 0, chat: 0 });
@@ -152,6 +152,11 @@ const Navbar = () => {
                 {item.label}
               </Link>
             ))}
+            {(isCoreTeam || isAdmin) && (
+              <Link to="/core-team" className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+                <Shield className="h-4 w-4" />Core Team
+              </Link>
+            )}
             {isAdmin && (
               <Link to="/admin" className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-accent hover:text-accent hover:bg-accent/10 transition-colors font-medium">
                 <Shield className="h-4 w-4" />Admin
@@ -294,6 +299,12 @@ const Navbar = () => {
                       </Link>
                     );
                   })}
+                  {(isCoreTeam || isAdmin) && (
+                    <Link to="/core-team" onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors">
+                      <Shield className="h-5 w-5" />Core Team
+                    </Link>
+                  )}
                   {isAdmin && (
                     <Link to="/admin" onClick={() => setMobileOpen(false)}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-accent hover:bg-accent/10 transition-colors font-medium">
