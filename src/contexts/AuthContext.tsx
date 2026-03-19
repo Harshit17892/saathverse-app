@@ -11,6 +11,7 @@ interface AuthContextType {
   college: any | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isCoreTeam: boolean;
   activeCollegeId: string | null;
   setActiveCollegeId: (id: string | null) => void;
   signOut: () => Promise<void>;
@@ -19,7 +20,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null, session: null, profile: null, loading: true,
-  collegeId: null, college: null, isAdmin: false, isSuperAdmin: false,
+  collegeId: null, college: null, isAdmin: false, isSuperAdmin: false, isCoreTeam: false,
   activeCollegeId: null, setActiveCollegeId: () => {},
   signOut: async () => {}, refreshProfile: async () => {},
 });
@@ -36,6 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [college, setCollege] = useState<any | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isCoreTeam, setIsCoreTeam] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeCollegeId, setActiveCollegeIdState] = useState<string | null>(null);
 
@@ -66,9 +68,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkRoles = async (userId: string, email: string) => {
     const { data: isGlobalAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     const { data: isCollegeAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "college_admin" });
+    const { data: isCore } = await supabase.rpc("has_role", { _user_id: userId, _role: "core_team" });
     const isSA = SUPER_ADMIN_EMAILS.includes(email.toLowerCase());
     setIsSuperAdmin(isSA);
     setIsAdmin(!!isGlobalAdmin || !!isCollegeAdmin || isSA);
+    setIsCoreTeam(!!isCore);
   };
 
   useEffect(() => {
@@ -89,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCollege(null);
           setIsAdmin(false);
           setIsSuperAdmin(false);
+          setIsCoreTeam(false);
           setLoading(false);
         }
       }
@@ -120,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCollege(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
+    setIsCoreTeam(false);
     sessionStorage.removeItem("activeCollegeId");
   };
 
@@ -130,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user, session, profile, loading,
-      collegeId, college, isAdmin, isSuperAdmin,
+      collegeId, college, isAdmin, isSuperAdmin, isCoreTeam,
       activeCollegeId, setActiveCollegeId,
       signOut, refreshProfile,
     }}>
