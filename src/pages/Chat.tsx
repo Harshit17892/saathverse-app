@@ -24,9 +24,11 @@ interface ChatContact {
 
 interface ChatMessage {
   id: string;
+  conversation_id?: string;
   content: string;
   sender_id: string;
   receiver_id: string;
+  college_id?: string | null;
   created_at: string;
   is_read: boolean;
 }
@@ -269,38 +271,56 @@ const Chat = () => {
     if (!user || !activeContact) { setMessages([]); return; }
 
     const convId = getConversationId(user.id, activeContact.id);
-    let pollInterval: ReturnType<typeof setInterval>;
+    let pollInterval: ReturnType<typeof setInterval> | undefined;
+    let fetchInFlight = false;
 
     const fetchMessages = async (markRead = false) => {
-      const { data } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", convId)
-        .order("created_at", { ascending: true });
-
-      if (data) {
-        // Merge with existing — keep optimistic messages, replace any that now have a real id
-        setMessages(prev => {
-          const optimistic = prev.filter(m => m.id.startsWith("opt-"));
-          const realIds = new Set(data.map((m: ChatMessage) => m.id));
-          // Remove optimistic if the real message content matches (already persisted)
-          const filteredOptimistic = optimistic.filter(o =>
-            !data.some((r: ChatMessage) => r.content === o.content && r.sender_id === o.sender_id)
-          );
-          return [...data as ChatMessage[], ...filteredOptimistic];
-        });
-      }
-
-      if (markRead) {
-        await supabase
+      if (fetchInFlight) return;
+      fetchInFlight = true;
+      try {
+        const { data } = await supabase
           .from("messages")
-          .update({ is_read: true })
+          .select("*")
           .eq("conversation_id", convId)
-          .eq("receiver_id", user.id)
-          .eq("is_read", false);
-        setContacts(prev => prev.map(c =>
-          c.id === activeContact.id ? { ...c, unread: 0 } : c
-        ));
+          .order("created_at", { ascending: true });
+
+        if (data) {
+          // Merge with existing — keep optimistic messages, replace any that now have a real id
+          setMessages(prev => {
+            const optimistic = prev.filter(m => m.id.startsWith("opt-"));
+            // Remove optimistic if a persisted message with same sender/receiver/content arrived nearby in time
+            const filteredOptimistic = optimistic.filter(o =>
+              !data.some((r: ChatMessage) =>
+                r.sender_id === o.sender_id &&
+                r.receiver_id === o.receiver_id &&
+                r.content === o.content &&
+                Math.abs(new Date(r.created_at).getTime() - new Date(o.created_at).getTime()) < 15000
+              )
+            );
+
+            const merged = [...data as ChatMessage[], ...filteredOptimistic];
+            const deduped = new Map<string, ChatMessage>();
+            for (const msg of merged) deduped.set(msg.id, msg);
+
+            return Array.from(deduped.values()).sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          });
+        }
+
+        if (markRead) {
+          await supabase
+            .from("messages")
+            .update({ is_read: true })
+            .eq("conversation_id", convId)
+            .eq("receiver_id", user.id)
+            .eq("is_read", false);
+          setContacts(prev => prev.map(c =>
+            c.id === activeContact.id ? { ...c, unread: 0 } : c
+          ));
+        }
+      } finally {
+        fetchInFlight = false;
       }
     };
 
@@ -351,21 +371,43 @@ const Chat = () => {
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          // Clear polling once realtime is confirmed live
-          clearInterval(pollInterval);
+          // Force a fresh sync as soon as channel is ready.
+          fetchMessages(true);
         }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          // Realtime failed — fall back to polling every 3s
-          clearInterval(pollInterval);
+          // Keep polling alive as fallback when websocket is unstable.
+          if (pollInterval) clearInterval(pollInterval);
           pollInterval = setInterval(() => fetchMessages(false), 3000);
         }
       });
 
-    // Start polling immediately as a safety net (stops once realtime confirms SUBSCRIBED)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = undefined;
+      } else {
+        // Fetch and mark read immediately when returning to the tab
+        fetchMessages(true);
+        // Always keep a polling fallback active while visible.
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => fetchMessages(false), 3000);
+      }
+    };
+
+    const handleWindowFocus = () => {
+      fetchMessages(true);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
+
+    // Keep lightweight polling as a permanent safety net.
     pollInterval = setInterval(() => fetchMessages(false), 3000);
 
     return () => {
-      clearInterval(pollInterval);
+      if (pollInterval) clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
       supabase.removeChannel(channel);
     };
   }, [user?.id, activeContact?.id]);
@@ -456,7 +498,7 @@ const Chat = () => {
     <div className="min-h-screen bg-background relative overflow-hidden">
       <Navbar />
 
-      <div className="pt-20 h-screen flex relative z-10">
+      <div className="pt-20 h-screen flex relative z-10 pb-16 lg:pb-0">
         {/* Contact List Sidebar */}
         <motion.aside
           initial={{ x: -40, opacity: 0 }}
