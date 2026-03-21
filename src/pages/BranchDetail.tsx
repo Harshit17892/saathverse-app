@@ -224,6 +224,29 @@ const TopStudentCarousel = ({ students }: { students: TopStudent[] }) => {
 
 type StudentDisplay = { id?: string; name: string; dept: string; year: string; title: string; skills: string[]; avatar_url?: string | null; isBot?: boolean };
 
+const inferBranchSlugFromText = (value?: string | null) => {
+  const v = (value || "").toLowerCase();
+  if (!v) return null;
+
+  if (v.includes("mbbs") || v.includes("medical")) return "medical";
+  if (v.includes("nursing") || v.includes("paramedical")) return "nursing-paramedical";
+  if (v.includes("pharmacy") || v.includes("pharma")) return "pharmacy";
+  if (v.includes("computer") || v.includes("cse") || v.includes("artificial intelligence") || v.includes("data science")) return "engineering-technology";
+  if (v.includes("engineering")) return "engineering-technology";
+  if (v.includes("science")) return "science";
+  if (v.includes("commerce") || v.includes("account")) return "commerce";
+  if (v.includes("management") || v.includes("business")) return "management";
+  if (v.includes("education")) return "education";
+  if (v.includes("law")) return "law";
+  if (v.includes("arts") || v.includes("humanities")) return "arts-humanities";
+  if (v.includes("design")) return "design";
+  if (v.includes("architecture") || v.includes("planning")) return "architecture-planning";
+  if (v.includes("agriculture")) return "agriculture";
+  if (v.includes("diploma")) return "diploma";
+
+  return null;
+};
+
 const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDisplay; i: number; onConnect?: (studentId: string, studentName: string) => void; isSent?: boolean }) => {
   const [hovered, setHovered] = useState(false);
   const canConnect = !student.isBot && !!student.id;
@@ -294,7 +317,10 @@ const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDispla
 // ─── Main Page ───
 const BranchDetail = () => {
   const { branchSlug } = useParams<{ branchSlug: string }>();
-  const meta = branchMeta[branchSlug || ""] || { label: branchSlug?.replace(/-/g, " ") || "Branch", color: "from-primary to-accent", icon: Code };
+  // Legacy per-college branch slugs may have a college suffix like "medical-3048bea8".
+  // Normalize to the base main-branch slug so filtering remains correct.
+  const normalizedBranchSlug = (branchSlug || "").replace(/-[a-f0-9]{8}$/i, "");
+  const meta = branchMeta[normalizedBranchSlug] || { label: normalizedBranchSlug.replace(/-/g, " ") || "Branch", color: "from-primary to-accent", icon: Code };
   const BranchIcon = meta.icon;
 
   const { collegeId, user } = useAuth();
@@ -302,15 +328,20 @@ const BranchDetail = () => {
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [branchEvents, setBranchEvents] = useState<BranchEvent[]>([]);
   const [featuredStudents, setFeaturedStudents] = useState<TopStudent[]>([]);
+  const [branchNotFound, setBranchNotFound] = useState(false);
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
   const [connectDialog, setConnectDialog] = useState<{ open: boolean; studentId: string; studentName: string }>({ open: false, studentId: "", studentName: "" });
-  const [connectMessage, setConnectMessage] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
 
   // Load existing sent requests
   useEffect(() => {
     if (!user) return;
-    supabase.from("connections").select("receiver_id").eq("sender_id", user.id).then(({ data }) => {
+    supabase
+      .from("connections")
+      .select("receiver_id")
+      .eq("sender_id", user.id)
+      .in("status", ["pending", "accepted"])
+      .then(({ data }) => {
       if (data) setSentRequests(new Set(data.map((d: any) => d.receiver_id)));
     });
   }, [user]);
@@ -319,7 +350,6 @@ const BranchDetail = () => {
     if (!user) { toast.error("Please log in first"); return; }
     if (studentId === user.id) { toast.info("That's you!"); return; }
     if (sentRequests.has(studentId)) { toast.info("Request already sent"); return; }
-    setConnectMessage("");
     setConnectDialog({ open: true, studentId, studentName });
   };
 
@@ -344,12 +374,13 @@ const BranchDetail = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoadingStudents(true);
+      setBranchNotFound(false);
 
       // 1. Find the main branch in new global table by slug
       const { data: mainBranchRow } = await supabase
         .from("main_branches" as any)
         .select("id, name, slug")
-        .eq("slug", branchSlug || "")
+        .eq("slug", normalizedBranchSlug)
         .maybeSingle();
 
       // 2. Also find old per-college branch (for events + featured students backward compat)
@@ -364,20 +395,55 @@ const BranchDetail = () => {
         oldBranchId = oldBranch?.id || null;
       }
 
-      // 3. Fetch students — filter by main_branch_id from new table
+      // If this slug doesn't exist in the new main_branches table AND doesn't exist in the legacy branches table,
+      // do not run an unfiltered student query (prevents "invalid slug shows all students" leak).
+      if (!mainBranchRow?.id && !oldBranchId) {
+        setBranchNotFound(true);
+        setLoadingStudents(false);
+        return;
+      }
+
+      // 3. Fetch students primarily by main_branch_id, with fallback mapping for legacy/missing records.
       let query = supabase
         .from("students")
         .select("*, main_branch:main_branches(name, slug), specialization:specializations(name), branches(name, slug)")
         .order("created_at", { ascending: false });
       if (collegeId) query = query.eq("college_id", collegeId);
       if (mainBranchRow?.id) query = query.eq("main_branch_id", (mainBranchRow as any).id);
+      else if (oldBranchId) query = query.eq("branch_id", oldBranchId);
 
       const { data } = await query;
-      if (data && data.length > 0) {
-        setDbStudents(data.map((s: any) => ({
+
+      // Fallback: include students in this branch inferred from legacy text fields
+      // when main_branch_id is missing/wrong (common in older profile records).
+      let fallbackStudents: any[] = [];
+      if (collegeId) {
+        const { data: fallbackData } = await supabase
+          .from("students")
+          .select("*, main_branch:main_branches(name, slug), specialization:specializations(name), branches(name, slug)")
+          .eq("college_id", collegeId)
+          .is("main_branch_id", null)
+          .order("created_at", { ascending: false });
+
+        fallbackStudents = (fallbackData || []).filter((s: any) => {
+          const inferred =
+            inferBranchSlugFromText(s.specialization?.name) ||
+            inferBranchSlugFromText(s.branch_name) ||
+            inferBranchSlugFromText(s.branches?.name);
+          return inferred === normalizedBranchSlug;
+        });
+      }
+
+      const mergedStudents = [
+        ...(data || []),
+        ...fallbackStudents.filter((s: any) => !(data || []).some((d: any) => d.id === s.id)),
+      ];
+
+      if (mergedStudents.length > 0) {
+        setDbStudents(mergedStudents.map((s: any) => ({
           id: s.id,
           name: s.name,
-          dept: s.main_branch?.name || s.branches?.name || meta.label,
+          dept: s.main_branch?.name || s.specialization?.name || s.branch_name || s.branches?.name || meta.label,
           year: s.graduation_year ? String(s.graduation_year) : "—",
           title: s.bio || "Student",
           skills: s.skills || [],
@@ -430,7 +496,7 @@ const BranchDetail = () => {
       setLoadingStudents(false);
     };
     fetchData();
-  }, [branchSlug, collegeId]);
+  }, [branchSlug, normalizedBranchSlug, collegeId]);
 
   const branchStudents: StudentDisplay[] = dbStudents;
 
@@ -444,6 +510,27 @@ const BranchDetail = () => {
   });
 
   const years: string[] = ["all", ...Array.from(new Set(branchStudents.map(s => s.year)))];
+
+  if (branchNotFound && !loadingStudents) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="pt-24 pb-16 px-4">
+          <div className="container mx-auto max-w-3xl">
+            <div className="glass rounded-2xl border border-border/30 p-8 text-center">
+              <Code className="h-10 w-10 text-muted-foreground/40 mx-auto mb-4" />
+              <h2 className="font-display text-2xl font-bold text-foreground mb-2">Branch not found</h2>
+              <p className="text-muted-foreground">Please select a valid branch from the list.</p>
+              <Link to="/" className="mt-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <ArrowLeft className="h-4 w-4" /> Back to Home
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -544,20 +631,17 @@ const BranchDetail = () => {
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="font-display">Connect with {connectDialog.studentName}</DialogTitle>
-                <DialogDescription>Add a message to your connection request (optional)</DialogDescription>
+                <DialogDescription>Send a connection request</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-2">
-                <Textarea
-                  placeholder="Hi! I'd love to connect with you..."
-                  value={connectMessage}
-                  onChange={(e) => setConnectMessage(e.target.value)}
-                  className="min-h-[100px] resize-none"
-                  maxLength={300}
-                />
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{connectMessage.length}/300</span>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setConnectDialog({ open: false, studentId: "", studentName: "" })}>Cancel</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConnectDialog({ open: false, studentId: "", studentName: "" })}
+                    >
+                      Cancel
+                    </Button>
                     <Button onClick={handleConnect} disabled={sendingRequest}>
                       {sendingRequest ? "Sending..." : "Send Request"}
                     </Button>
