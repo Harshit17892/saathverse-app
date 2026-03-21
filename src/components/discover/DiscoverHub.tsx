@@ -245,152 +245,258 @@ const DiscoverHub = () => {
         </motion.div>
 
         {/* ═══════════ CLUBS & IEEE CTAs ═══════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Clubs CTA */}
+        <div className="space-y-8 sm:space-y-10">
+          {/* Campus Clubs Full Width */}
           <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7 }}
           >
-            <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-card/40 backdrop-blur-xl p-8 sm:p-10 h-full group">
+            <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-card/40 backdrop-blur-xl p-6 sm:p-10 lg:p-12">
               <motion.div
-                animate={{ rotate: [0, 360] }}
-                transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-                className="absolute -top-16 -right-16 w-48 h-48 rounded-full border border-primary/10"
+                animate={{ x: [0, 60, 0], y: [0, -30, 0], scale: [1, 1.15, 1] }}
+                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-primary/10 blur-[120px]"
               />
               <motion.div
-                animate={{ rotate: [360, 0] }}
-                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                className="absolute -top-10 -right-10 w-36 h-36 rounded-full border border-primary/5"
-              />
-              <motion.div
-                animate={{ scale: [1, 1.4, 1], opacity: [0.05, 0.15, 0.05] }}
-                transition={{ duration: 5, repeat: Infinity }}
-                className="absolute bottom-0 left-0 w-40 h-40 rounded-full bg-primary/10 blur-[80px]"
+                animate={{ x: [0, -30, 0], y: [0, 40, 0], scale: [1.1, 1, 1.1] }}
+                transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -bottom-24 -right-20 w-96 h-96 rounded-full bg-accent/10 blur-[140px]"
               />
 
-              {/* Hex pattern */}
-              <div className="absolute inset-0 opacity-[0.03]">
+              <div className="absolute inset-0 opacity-[0.05]">
                 <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
                   <defs>
-                    <pattern id="hex" width="50" height="43.3" patternUnits="userSpaceOnUse">
-                      <polygon points="25,0 50,14.4 50,43.3 25,28.9 0,43.3 0,14.4" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-primary" />
+                    <pattern id="clubs-web3-grid-v2" width="54" height="46.8" patternUnits="userSpaceOnUse">
+                      <polygon points="27,0 54,15.6 54,46.8 27,31.2 0,46.8 0,15.6" fill="none" stroke="currentColor" strokeWidth="0.6" className="text-primary" />
                     </pattern>
                   </defs>
-                  <rect width="100%" height="100%" fill="url(#hex)" />
+                  <rect width="100%" height="100%" fill="url(#clubs-web3-grid-v2)" />
                 </svg>
               </div>
 
-              <div className="relative z-10">
-                <motion.div
-                  whileHover={{ rotate: 15, scale: 1.1 }}
-                  className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center mb-6"
-                >
-                  <Layers className="h-7 w-7 text-primary" />
-                </motion.div>
-
-                <h3 className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-3">
-                  Campus <span className="text-primary">Clubs</span>
-                </h3>
-                <p className="text-muted-foreground text-sm leading-relaxed mb-8 max-w-sm">
-                  Discover societies, join communities, attend events, and find your tribe on campus.
-                </p>
-
-                <Link to="/clubs">
-                  <motion.button
-                    whileHover={{ scale: 1.05, boxShadow: "0 0 30px hsl(var(--primary) / 0.3)" }}
-                    whileTap={{ scale: 0.95 }}
-                    className="relative overflow-hidden px-7 py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-primary to-primary/80 text-primary-foreground group/btn"
+              <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-8 lg:gap-10 items-center">
+                <div>
+                  <motion.div
+                    whileHover={{ rotate: 10, scale: 1.08 }}
+                    className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/25 to-primary/5 border border-primary/30 flex items-center justify-center mb-6"
                   >
-                    <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                      animate={{ x: ["-100%", "200%"] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 2 }}
-                    />
-                    <span className="relative flex items-center gap-2">
-                      <Layers className="h-4 w-4" />
-                      Explore Clubs
-                      <ChevronRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
-                    </span>
-                  </motion.button>
-                </Link>
+                    <Layers className="h-7 w-7 text-primary" />
+                  </motion.div>
+
+                  <h3 className="font-display text-3xl sm:text-4xl md:text-[2.8rem] font-bold text-foreground mb-4 leading-tight">
+                    Campus Clubs, <span className="text-primary">Reimagined</span>
+                  </h3>
+                  <p className="text-muted-foreground text-base sm:text-lg leading-relaxed mb-6 max-w-xl">
+                    Discover active communities, live events, and creator circles through a high-energy club ecosystem built for students.
+                  </p>
+
+                  <div className="flex flex-wrap gap-2.5 mb-8">
+                    {["120+ Active Clubs", "Weekly Events", "Creator Communities"].map((chip, i) => (
+                      <motion.span
+                        key={chip}
+                        initial={{ opacity: 0, y: 10 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.05 + i * 0.08 }}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold border border-primary/25 bg-primary/10 text-primary"
+                      >
+                        {chip}
+                      </motion.span>
+                    ))}
+                  </div>
+
+                  <Link to="/clubs">
+                    <motion.button
+                      whileHover={{ scale: 1.04, boxShadow: "0 0 42px hsl(var(--primary) / 0.45)" }}
+                      whileTap={{ scale: 0.96 }}
+                      className="relative overflow-hidden px-8 py-3.5 rounded-2xl font-bold text-sm sm:text-base bg-gradient-to-r from-primary via-primary to-accent text-primary-foreground group/btn border border-primary/30"
+                    >
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                        animate={{ x: ["-100%", "220%"] }}
+                        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.3 }}
+                      />
+                      <span className="relative flex items-center gap-2.5">
+                        <Layers className="h-4 w-4 sm:h-5 sm:w-5" />
+                        Explore Campus Clubs
+                        <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover/btn:translate-x-1 transition-transform" />
+                      </span>
+                    </motion.button>
+                  </Link>
+                </div>
+
+                <div className="relative h-[230px] sm:h-[260px] lg:h-[280px]">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
+                    className="absolute right-3 top-2 h-40 w-40 rounded-full border border-primary/20"
+                  />
+                  <motion.div
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
+                    className="absolute right-10 top-9 h-26 w-26 rounded-full border border-accent/20"
+                  />
+
+                  <motion.div
+                    animate={{ y: [0, -10, 0] }}
+                    transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute left-0 top-6 rounded-2xl border border-primary/25 bg-background/50 backdrop-blur-md px-4 py-3"
+                  >
+                    <p className="text-[10px] uppercase tracking-wider text-primary/80">Live Now</p>
+                    <p className="text-sm font-semibold text-foreground">Design Society Meetup</p>
+                  </motion.div>
+
+                  <motion.div
+                    animate={{ y: [0, 10, 0] }}
+                    transition={{ duration: 4.4, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                    className="absolute left-10 bottom-7 rounded-2xl border border-accent/25 bg-background/50 backdrop-blur-md px-4 py-3"
+                  >
+                    <p className="text-[10px] uppercase tracking-wider text-accent/80">Trending</p>
+                    <p className="text-sm font-semibold text-foreground">Film & Media Collective</p>
+                  </motion.div>
+
+                  <motion.div
+                    animate={{ y: [0, -8, 0] }}
+                    transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+                    className="absolute right-2 bottom-3 rounded-2xl border border-primary/25 bg-background/50 backdrop-blur-md px-4 py-3"
+                  >
+                    <p className="text-[10px] uppercase tracking-wider text-primary/80">Members</p>
+                    <p className="text-sm font-semibold text-foreground">2,840+ students</p>
+                  </motion.div>
+                </div>
               </div>
             </div>
           </motion.div>
 
-          {/* IEEE CTA */}
+          {/* IEEE Full Width */}
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7, delay: 0.05 }}
           >
-            <div className="relative overflow-hidden rounded-3xl border border-blue-400/20 bg-card/40 backdrop-blur-xl p-8 sm:p-10 h-full group">
-              {/* Circuit pattern */}
-              <div className="absolute inset-0 opacity-[0.04]">
+            <div className="relative overflow-hidden rounded-3xl border border-blue-400/30 bg-card/40 backdrop-blur-xl p-6 sm:p-10 lg:p-12">
+              <motion.div
+                animate={{ scale: [1, 1.25, 1], opacity: [0.08, 0.18, 0.08] }}
+                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -top-20 right-10 w-96 h-96 rounded-full bg-blue-500/10 blur-[130px]"
+              />
+
+              <div className="absolute inset-0 opacity-[0.06]">
                 <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
                   <defs>
-                    <pattern id="circuit2" width="40" height="40" patternUnits="userSpaceOnUse">
-                      <circle cx="20" cy="20" r="2" fill="currentColor" className="text-blue-400" />
-                      <path d="M20 0 V20 M0 20 H20 M20 20 L40 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-blue-400" />
+                    <pattern id="ieee-web3-circuit" width="52" height="52" patternUnits="userSpaceOnUse">
+                      <circle cx="26" cy="26" r="2" fill="currentColor" className="text-blue-400" />
+                      <path d="M26 0 V26 M0 26 H26 M26 26 H52 M26 26 V52" fill="none" stroke="currentColor" strokeWidth="0.6" className="text-blue-400" />
                     </pattern>
                   </defs>
-                  <rect width="100%" height="100%" fill="url(#circuit2)" />
+                  <rect width="100%" height="100%" fill="url(#ieee-web3-circuit)" />
                 </svg>
               </div>
 
-              <motion.div
-                animate={{ scale: [1, 1.4, 1], opacity: [0.05, 0.15, 0.05] }}
-                transition={{ duration: 6, repeat: Infinity }}
-                className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-blue-500/10 blur-[80px]"
-              />
-
-              {/* Pulsing signal rings */}
-              <div className="absolute top-8 right-8">
-                {[0, 1, 2].map((i) => (
+              <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.02fr_0.98fr] gap-8 lg:gap-10 items-center">
+                <div>
                   <motion.div
-                    key={i}
-                    animate={{ scale: [1, 2.5], opacity: [0.3, 0] }}
-                    transition={{ duration: 2, delay: i * 0.6, repeat: Infinity }}
-                    className="absolute inset-0 w-8 h-8 rounded-full border border-blue-400/30"
-                  />
-                ))}
-              </div>
-
-              <div className="relative z-10">
-                <motion.div
-                  whileHover={{ rotate: 15, scale: 1.1 }}
-                  className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 border border-blue-500/20 flex items-center justify-center mb-6"
-                >
-                  <Radio className="h-7 w-7 text-blue-400" />
-                </motion.div>
-
-                <h3 className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-3">
-                  IEEE <span className="text-blue-400">Chapter</span>
-                </h3>
-                <p className="text-muted-foreground text-sm leading-relaxed mb-8 max-w-sm">
-                  Research papers, technical workshops, conferences, and industry networking — level up professionally.
-                </p>
-
-                <Link to="/ieee">
-                  <motion.button
-                    whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(96, 165, 250, 0.3)" }}
-                    whileTap={{ scale: 0.95 }}
-                    className="relative overflow-hidden px-7 py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-blue-500 to-blue-400 text-white group/btn"
+                    whileHover={{ rotate: 10, scale: 1.08 }}
+                    className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500/25 to-blue-500/5 border border-blue-400/30 flex items-center justify-center mb-6"
                   >
+                    <Radio className="h-7 w-7 text-blue-400" />
+                  </motion.div>
+
+                  <h3 className="font-display text-3xl sm:text-4xl md:text-[2.8rem] font-bold text-foreground mb-4 leading-tight">
+                    IEEE, <span className="text-blue-400">Future-Ready Network</span>
+                  </h3>
+                  <p className="text-muted-foreground text-base sm:text-lg leading-relaxed mb-6 max-w-xl">
+                    Join a high-signal ecosystem of workshops, research circles, conference prep, and mentorship that accelerates your engineering trajectory.
+                  </p>
+
+                  <div className="flex flex-wrap gap-2.5 mb-8">
+                    {["Research Pods", "Weekly Workshops", "Industry Connect"].map((chip, i) => (
+                      <motion.span
+                        key={chip}
+                        initial={{ opacity: 0, y: 10 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.06 + i * 0.08 }}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-400/30 bg-blue-500/10 text-blue-300"
+                      >
+                        {chip}
+                      </motion.span>
+                    ))}
+                  </div>
+
+                  <Link to="/ieee">
+                    <motion.button
+                      whileHover={{ scale: 1.04, boxShadow: "0 0 42px rgba(96, 165, 250, 0.45)" }}
+                      whileTap={{ scale: 0.96 }}
+                      className="relative overflow-hidden px-8 py-3.5 rounded-2xl font-bold text-sm sm:text-base bg-gradient-to-r from-blue-500 via-sky-500 to-blue-400 text-white group/btn border border-blue-400/40"
+                    >
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                        animate={{ x: ["-100%", "220%"] }}
+                        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.2 }}
+                      />
+                      <span className="relative flex items-center gap-2.5">
+                        <Radio className="h-4 w-4 sm:h-5 sm:w-5" />
+                        Explore IEEE Chapter
+                        <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 group-hover/btn:translate-x-1 transition-transform" />
+                      </span>
+                    </motion.button>
+                  </Link>
+                </div>
+
+                <div className="relative h-[230px] sm:h-[260px] lg:h-[280px]">
+                  <motion.div
+                    animate={{ opacity: [0.2, 0.6, 0.2] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute right-8 top-4 h-2 w-2 rounded-full bg-blue-400"
+                  />
+                  <motion.div
+                    animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.3, 1] }}
+                    transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+                    className="absolute right-20 top-16 h-1.5 w-1.5 rounded-full bg-sky-300"
+                  />
+                  <motion.div
+                    animate={{ opacity: [0.3, 0.9, 0.3], scale: [1, 1.4, 1] }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                    className="absolute right-12 bottom-20 h-2 w-2 rounded-full bg-blue-300"
+                  />
+
+                  <div className="absolute left-0 right-0 top-6 bottom-6 rounded-2xl border border-blue-400/20 bg-background/30 backdrop-blur-md p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] uppercase tracking-wider text-blue-300/80">Signal Board</span>
+                      <span className="text-[10px] text-blue-300">Live</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {[72, 54, 88, 61].map((v, i) => (
+                        <div key={v + i} className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-8">N{i + 1}</span>
+                          <div className="h-2 flex-1 rounded-full bg-blue-950/40 overflow-hidden">
+                            <motion.div
+                              initial={{ width: "0%" }}
+                              whileInView={{ width: `${v}%` }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 0.9, delay: 0.15 + i * 0.12 }}
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-sky-400"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
                     <motion.div
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                      animate={{ x: ["-100%", "200%"] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.8 }}
-                    />
-                    <span className="relative flex items-center gap-2">
-                      <Radio className="h-4 w-4" />
-                      Explore IEEE
-                      <ChevronRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
-                    </span>
-                  </motion.button>
-                </Link>
+                      animate={{ y: [0, -6, 0] }}
+                      transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                      className="mt-4 rounded-xl border border-blue-400/25 bg-blue-500/10 px-3 py-2"
+                    >
+                      <p className="text-[10px] uppercase tracking-wider text-blue-300/80">Upcoming</p>
+                      <p className="text-sm font-semibold text-foreground">IEEE Research Sprint</p>
+                    </motion.div>
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
