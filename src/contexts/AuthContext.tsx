@@ -47,6 +47,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     else sessionStorage.removeItem("activeCollegeId");
   };
 
+  const ensureSuperAdminActiveCollege = async () => {
+    const stored = sessionStorage.getItem("activeCollegeId");
+
+    if (stored) {
+      const { data: existing } = await supabase
+        .from("colleges")
+        .select("id")
+        .eq("id", stored)
+        .maybeSingle();
+
+      if (existing?.id) {
+        setActiveCollegeIdState(existing.id);
+        return;
+      }
+
+      sessionStorage.removeItem("activeCollegeId");
+    }
+
+    const { data: firstCollege } = await supabase
+      .from("colleges")
+      .select("id")
+      .order("name", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (firstCollege?.id) {
+      setActiveCollegeIdState(firstCollege.id);
+      sessionStorage.setItem("activeCollegeId", firstCollege.id);
+    }
+  };
+
   const fetchProfile = async (userId: string) => {
     const { data: prof } = await supabase
       .from("profiles").select("*").eq("user_id", userId).maybeSingle();
@@ -70,6 +101,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: isCollegeAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "college_admin" });
     const { data: isCore } = await supabase.rpc("has_role", { _user_id: userId, _role: "core_team" });
     const isSA = SUPER_ADMIN_EMAILS.includes(email.toLowerCase());
+
+    if (isSA) {
+      await ensureSuperAdminActiveCollege();
+    }
+
     setIsSuperAdmin(isSA);
     setIsAdmin(!!isGlobalAdmin || !!isCollegeAdmin || isSA);
     setIsCoreTeam(!!isCore);
