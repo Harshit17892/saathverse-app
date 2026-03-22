@@ -2190,7 +2190,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user", "college_admin"],
+      app_role: ["admin", "moderator", "user", "college_admin", "core_team"],
       join_request_status: ["pending", "approved", "rejected"],
       payment_mode: ["online", "at_venue", "free"],
     },
