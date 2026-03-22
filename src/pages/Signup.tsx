@@ -357,7 +357,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex relative overflow-hidden">
+    <div className="mobile-auth-screen bg-background flex relative overflow-x-hidden">
       {/* Subtle dot grid */}
       <div className="absolute inset-0 opacity-[0.015]" style={{
         backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--foreground)) 1px, transparent 0)`,
