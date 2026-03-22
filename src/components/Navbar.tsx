@@ -77,6 +77,15 @@ const Navbar = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
+  useEffect(() => {
+    if (user) {
+      document.body.classList.add("has-mobile-tabbar");
+      return () => document.body.classList.remove("has-mobile-tabbar");
+    }
+
+    document.body.classList.remove("has-mobile-tabbar");
+  }, [user]);
+
   const handleSignOut = async () => { await signOut(); navigate("/login"); };
   const getBadgeCount = (badgeKey?: "requests" | "chat") => {
     if (!badgeKey || !user) return 0;
@@ -106,7 +115,7 @@ const Navbar = () => {
             <img src={saathverseLogo} alt="SaathVerse" className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg object-contain" />
             <span className="font-display text-lg sm:text-xl font-bold text-foreground">SaathVerse</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Log in</Link>
             <Link
               to="/signup"
@@ -186,8 +195,8 @@ const Navbar = () => {
               </div>
             ) : (
               <>
-                <Link to="/login" className="hidden sm:inline text-sm text-muted-foreground hover:text-foreground transition-colors">Log in</Link>
-                <Link to="/signup" className="hidden sm:inline text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium">Sign Up</Link>
+                <Link to="/login" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">Log in</Link>
+                <Link to="/signup" className="inline-flex items-center text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium">Sign Up</Link>
               </>
             )}
           </div>
