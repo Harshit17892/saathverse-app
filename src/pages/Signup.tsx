@@ -126,6 +126,7 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stepChecking, setStepChecking] = useState(false);
+  const [forceMobileLayout, setForceMobileLayout] = useState(false);
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -182,6 +183,19 @@ const Signup = () => {
     setIsLogin(nextIsLogin);
     setStep(0);
   }, [location.pathname]);
+
+  // In mobile browsers with "Desktop site" enabled, width breakpoints can switch to desktop UI.
+  // Force the mobile auth layout for touch devices to keep form sizing and positioning stable.
+  useEffect(() => {
+    const updateLayoutMode = () => {
+      const isTouchDevice = window.matchMedia("(pointer: coarse)").matches || window.matchMedia("(hover: none)").matches;
+      setForceMobileLayout(isTouchDevice);
+    };
+
+    updateLayoutMode();
+    window.addEventListener("resize", updateLayoutMode);
+    return () => window.removeEventListener("resize", updateLayoutMode);
+  }, []);
 
   // Filter branches based on admin-enabled settings
   const filteredBranches = useMemo(() => {
@@ -369,7 +383,7 @@ const Signup = () => {
       <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-primary/[0.04] blur-[200px]" />
 
       {/* Mobile/Tablet orbital background */}
-      <div className="lg:hidden absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.18]">
+      <div className={`${forceMobileLayout ? "" : "lg:hidden "}absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.18]`}>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-accent/[0.08] blur-[100px]" />
         <DashedOrbit size={320} duration={60} direction={1} opacity={0.15} />
         <DashedOrbit size={240} duration={45} direction={-1} opacity={0.2} />
@@ -388,7 +402,7 @@ const Signup = () => {
       </div>
 
       {/* ──────── Left Panel - Form ──────── */}
-      <div className="w-full lg:w-[55%] flex flex-col justify-center px-6 md:px-12 lg:px-16 py-8 relative z-10">
+      <div className={`w-full ${forceMobileLayout ? "" : "lg:w-[55%]"} flex flex-col justify-center px-6 md:px-12 lg:px-16 py-8 relative z-10`}>
         {/* Header */}
         <div className="flex items-center mb-10">
           <Link to="/" className="flex items-center gap-2.5 group">
@@ -813,6 +827,7 @@ const Signup = () => {
       </div>
 
       {/* ──────── Right Panel - Web3 Orbital Visual ──────── */}
+      {!forceMobileLayout && (
       <div className="hidden lg:flex w-[45%] items-center justify-center relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-accent/[0.06] blur-[150px]" />
         <DashedOrbit size={450} duration={60} direction={1} opacity={0.12} />
@@ -859,6 +874,7 @@ const Signup = () => {
           ))}
         </div>
       </div>
+      )}
 
       {/* Image Cropper Modal */}
       {cropSrc && (
