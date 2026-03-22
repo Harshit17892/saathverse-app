@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mail, Lock, Eye, EyeOff, User, BookOpen,
@@ -121,9 +121,11 @@ const BranchDropdown = ({ value, onChange, branches }: {
 
 const Signup = () => {
   const [step, setStep] = useState(0);
-  const [isLogin, setIsLogin] = useState(false);
+  const location = useLocation();
+  const [isLogin, setIsLogin] = useState(location.pathname === "/login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stepChecking, setStepChecking] = useState(false);
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -174,6 +176,13 @@ const Signup = () => {
     if (step >= 1) loadFormSettings();
   }, [step, email]);
 
+  // Sync UI mode with current route
+  useEffect(() => {
+    const nextIsLogin = location.pathname === "/login";
+    setIsLogin(nextIsLogin);
+    setStep(0);
+  }, [location.pathname]);
+
   // Filter branches based on admin-enabled settings
   const filteredBranches = useMemo(() => {
     if (!formSettings?.enabled_branches) return branchesData;
@@ -221,10 +230,31 @@ const Signup = () => {
     }
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     if (step === 0) {
       if (!email || !password) return toast.error("Please fill email and password");
+      if (password.length < 6) return toast.error("Password must be at least 6 characters");
       if (!isLogin && password !== confirmPassword) return toast.error("Passwords don't match");
+
+      // Validate domain before allowing signup users to move forward
+      if (!isLogin) {
+        try {
+          setStepChecking(true);
+          const domain = email.split("@")[1];
+          const { data: college } = await supabase
+            .from("colleges")
+            .select("id")
+            .eq("domain", domain)
+            .maybeSingle();
+
+          if (!college) {
+            toast.error(`${domain} is not registered on SaathVerse yet.`);
+            return;
+          }
+        } finally {
+          setStepChecking(false);
+        }
+      }
     }
     if (step === 1) {
       if (!fullName.trim()) return toast.error("Full Name is required");
@@ -445,6 +475,7 @@ const Signup = () => {
                   <Input type={showPassword ? "text" : "password"} className={inputClass} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter password" />
                 </div>
                 <Button onClick={nextStep}
+                  disabled={stepChecking}
                   className="w-full h-12 text-base font-bold rounded-full glow-accent gap-2 mt-2"
                   style={{ background: "linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)))", color: "hsl(var(--accent-foreground))" }}
                 >
