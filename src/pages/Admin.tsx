@@ -435,16 +435,32 @@ const Admin = () => {
     }
     const t = setTimeout(async () => {
       const q = coreTeamQuery.trim();
-      const { data } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, branch, photo_url")
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, name, email, branch_name, main_branch:main_branch_id(name), specialization:specialization_id(name)")
         .eq("college_id", activeCollegeId)
-        .ilike("full_name", `%${q}%`)
+        .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
         .limit(8);
-      setCoreTeamSearchResults(data || []);
+
+      if (error) {
+        setCoreTeamSearchResults([]);
+        return;
+      }
+
+      const assignedIds = new Set((coreTeamMembers || []).map((m: any) => m.user_id));
+      const normalized = (data || [])
+        .filter((s: any) => !assignedIds.has(s.id))
+        .map((s: any) => ({
+          user_id: s.id,
+          full_name: s.name || "Unknown",
+          email: s.email || "",
+          branch: s.specialization?.name || s.main_branch?.name || s.branch_name || "",
+        }));
+
+      setCoreTeamSearchResults(normalized);
     }, 250);
     return () => clearTimeout(t);
-  }, [coreTeamQuery, section, activeCollegeId]);
+  }, [coreTeamQuery, section, activeCollegeId, coreTeamMembers]);
 
   const handleAssignCoreTeam = async () => {
     if (!activeCollegeId || !coreTeamSelectedUserId) {
@@ -1586,9 +1602,16 @@ const Admin = () => {
                           }`}
                         >
                           <span className="text-foreground">{p.full_name || "Unknown"}</span>
+                          {p.email && <span className="text-xs text-muted-foreground ml-2">({p.email})</span>}
                           {p.branch && <span className="text-xs text-muted-foreground ml-2">• {p.branch}</span>}
                         </button>
                       ))}
+                    </div>
+                  )}
+
+                  {coreTeamQuery.trim().length >= 2 && coreTeamSearchResults.length === 0 && (
+                    <div className="text-xs text-muted-foreground px-3 py-2 border border-border/30 rounded-xl">
+                      No students found for this college.
                     </div>
                   )}
 
