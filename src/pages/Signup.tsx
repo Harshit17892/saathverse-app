@@ -125,6 +125,7 @@ const Signup = () => {
   const [isLogin, setIsLogin] = useState(location.pathname === "/login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [stepChecking, setStepChecking] = useState(false);
   const [forceMobileLayout, setForceMobileLayout] = useState(false);
   const navigate = useNavigate();
@@ -362,6 +363,29 @@ const Signup = () => {
     setLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      toast.error("Enter your email first to reset your password");
+      return;
+    }
+
+    setResettingPassword(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/profile`,
+    });
+
+    if (error) {
+      toast.error(error.message);
+      setResettingPassword(false);
+      return;
+    }
+
+    toast.success("Password reset link sent. Check your inbox.");
+    setResettingPassword(false);
+  };
+
   const inputClass = "h-12 bg-secondary/50 border-border/40 focus:border-accent rounded-xl text-sm transition-all duration-300 focus:shadow-[0_0_20px_hsl(var(--accent)/0.15)]";
 
   const slideVariants = {
@@ -452,6 +476,16 @@ const Signup = () => {
                     <Input type={showPassword ? "text" : "password"} className={inputClass + " pr-12"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={resettingPassword}
+                      className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors disabled:opacity-60"
+                    >
+                      {resettingPassword ? "Sending reset link..." : "Forgot password?"}
                     </button>
                   </div>
                 </div>
