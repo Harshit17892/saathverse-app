@@ -49,6 +49,33 @@ const slugIconMap: Record<string, string> = {
   "nursing-paramedical": "🏥",
 };
 
+const nameIconMap: Record<string, string> = {
+  "Diploma": "📐",
+  "Engineering & Technology": "⚙️",
+  "Medical": "🩺",
+  "Science": "🔬",
+  "Commerce": "📊",
+  "Management": "📈",
+  "Arts & Humanities": "🎨",
+  "Law": "⚖️",
+  "Education": "📚",
+  "Architecture & Planning": "🏛️",
+  "Design": "✏️",
+  "Agriculture": "🌾",
+  "Pharmacy": "💊",
+  "Nursing & Paramedical": "🏥",
+};
+
+const getBranchIcon = (branch: { name?: string; slug?: string; icon?: string }) => {
+  const normalizedSlug = (branch.slug || "").replace(/-[a-f0-9]{8}$/i, "");
+  return (
+    slugIconMap[normalizedSlug] ||
+    nameIconMap[branch.name || ""] ||
+    iconMap[branch.icon || ""] ||
+    "📚"
+  );
+};
+
 const FeaturesSection = () => {
   const { collegeId } = useAuth();
   const navigate = useNavigate();
@@ -68,7 +95,9 @@ const FeaturesSection = () => {
   const branches = dbBranches.length > 2
     ? (() => {
         const mapped = Array.from(new Map(dbBranches.map((b: any) => [b.slug, {
-          name: b.name, slug: b.slug, icon: iconMap[b.icon] || slugIconMap[b.slug] || "📚",
+          name: b.name,
+          slug: b.slug,
+          icon: getBranchIcon({ name: b.name, slug: b.slug, icon: b.icon }),
         }])).values());
         const engIdx = mapped.findIndex((b: any) => b.slug === "engineering-technology");
         if (engIdx > 0) { const [eng] = mapped.splice(engIdx, 1); mapped.unshift(eng); }
