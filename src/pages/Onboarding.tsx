@@ -86,15 +86,25 @@ export default function Onboarding() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 1048576) { toast.error("Image must be under 1 MB"); return; }
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
     setCropSrc(URL.createObjectURL(file));
   };
 
   const handleCropComplete = (blob: Blob) => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
     const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
     setPhoto(file);
     setPhotoPreview(URL.createObjectURL(blob));
     setCropSrc(null);
   };
+
+  // Revoke object URLs to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (cropSrc) URL.revokeObjectURL(cropSrc);
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [cropSrc, photoPreview]);
 
   const addSkill = () => {
     const s = skillInput.trim();
@@ -222,12 +232,12 @@ export default function Onboarding() {
   const selectClass = "h-12 bg-secondary/50 border border-border/40 rounded-xl w-full px-3 text-foreground text-sm focus:border-accent transition-all";
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden px-4">
+    <div className="mobile-auth-screen bg-background flex items-start sm:items-center justify-center relative overflow-x-hidden px-4 py-4 sm:py-6">
       <div className="absolute top-[-30%] left-[-15%] w-[600px] h-[600px] rounded-full bg-primary/8 blur-[150px]" />
       <div className="absolute bottom-[-30%] right-[-15%] w-[600px] h-[600px] rounded-full bg-accent/8 blur-[150px]" />
 
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-lg glass rounded-2xl p-8 border border-border/50 relative z-10 max-h-[90vh] overflow-y-auto">
+        className="w-full max-w-lg glass rounded-2xl p-8 border border-border/50 relative z-10 max-h-[calc(100svh-2rem)] sm:max-h-[90vh] overflow-y-auto">
         <div className="flex items-center gap-3 mb-2">
           <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isAdminInvite ? "bg-primary" : "bg-accent"}`}>
             {isAdminInvite ? <Shield className="h-5 w-5 text-primary-foreground" /> : <GraduationCap className="h-5 w-5 text-accent-foreground" />}
