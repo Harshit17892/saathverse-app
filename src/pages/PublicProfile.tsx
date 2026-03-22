@@ -79,10 +79,16 @@ export default function PublicProfile() {
   useEffect(() => {
     if (!userId) return;
     const fetchData = async () => {
+      if (!collegeId) {
+        setLoading(false);
+        setProfile(null);
+        return;
+      }
       const { data } = await supabase
         .from("students")
         .select("*, branches(name)")
         .eq("id", userId)
+        .eq("college_id", collegeId)
         .maybeSingle();
       if (data) {
         setProfile(data as any);
@@ -90,26 +96,29 @@ export default function PublicProfile() {
           const { data: col } = await supabase.from("colleges").select("name").eq("id", data.college_id).maybeSingle();
           if (col) setCollegeName(col.name);
         }
-        if (!data.branches && !data.branch_id) {
-          const { data: prof } = await supabase.from("profiles").select("branch, bio, photo_url, skills, linkedin_url, github_url").eq("user_id", userId).maybeSingle();
-          if (prof) {
-            setProfile((prev: any) => ({
-              ...prev,
-              bio: prev?.bio || prof.bio,
-              avatar_url: prev?.avatar_url || prof.photo_url,
-              skills: prev?.skills?.length ? prev.skills : (prof.skills || []),
-              _branch_name: prof.branch,
-              _linkedin: prof.linkedin_url,
-              _github: prof.github_url,
-            }));
-          }
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("branch, bio, photo_url, skills, linkedin_url, github_url")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (prof) {
+          setProfile((prev: any) => ({
+            ...prev,
+            bio: prev?.bio || prof.bio,
+            avatar_url: prev?.avatar_url || prof.photo_url,
+            skills: prev?.skills?.length ? prev.skills : (prof.skills || []),
+            _branch_name: prof.branch,
+            _linkedin: prof.linkedin_url,
+            _github: prof.github_url,
+          }));
         }
       }
       setLoading(false);
     };
     fetchData();
     fetchConnectionStatus();
-  }, [userId, user]);
+  }, [userId, user, collegeId]);
 
   const handleConnect = async () => {
     if (!user || !userId) { toast.error("Please log in first"); return; }
