@@ -346,6 +346,10 @@ const Admin = () => {
 
   const [form, setForm] = useState<Record<string, any>>({});
   const [discovering, setDiscovering] = useState(false);
+  const [clubPresidentQuery, setClubPresidentQuery] = useState("");
+  const [clubPresidentResults, setClubPresidentResults] = useState<any[]>([]);
+  const [clubVicePresidentQuery, setClubVicePresidentQuery] = useState("");
+  const [clubVicePresidentResults, setClubVicePresidentResults] = useState<any[]>([]);
   
 
   // College Admins management
@@ -762,14 +766,104 @@ const Admin = () => {
       toast({ title: "Export failed", description: e.message, variant: "destructive" });
     }
   };
-  const openCreate = () => { setEditId(null); setForm({ is_active: true }); setFormOpen(true); };
-  const openEdit = (id: string, data: Record<string, any>) => { 
+
+  useEffect(() => {
+    if (!formOpen || section !== "clubs" || !activeCollegeId) return;
+    if (clubPresidentQuery.trim().length < 2) {
+      setClubPresidentResults([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      const q = clubPresidentQuery.trim();
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, name, email, branch_name")
+        .eq("college_id", activeCollegeId)
+        .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
+        .limit(8);
+
+      if (error) {
+        setClubPresidentResults([]);
+        return;
+      }
+
+      const filtered = (data || []).filter((s: any) => s.id !== form.vice_president_user_id);
+      setClubPresidentResults(filtered);
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [clubPresidentQuery, formOpen, section, activeCollegeId, form.vice_president_user_id]);
+
+  useEffect(() => {
+    if (!formOpen || section !== "clubs" || !activeCollegeId) return;
+    if (clubVicePresidentQuery.trim().length < 2) {
+      setClubVicePresidentResults([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      const q = clubVicePresidentQuery.trim();
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, name, email, branch_name")
+        .eq("college_id", activeCollegeId)
+        .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
+        .limit(8);
+
+      if (error) {
+        setClubVicePresidentResults([]);
+        return;
+      }
+
+      const filtered = (data || []).filter((s: any) => s.id !== form.president_user_id);
+      setClubVicePresidentResults(filtered);
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [clubVicePresidentQuery, formOpen, section, activeCollegeId, form.president_user_id]);
+
+  const openCreate = () => {
+    setEditId(null);
+    setForm({ is_active: true });
+    setClubPresidentQuery("");
+    setClubPresidentResults([]);
+    setClubVicePresidentQuery("");
+    setClubVicePresidentResults([]);
+    setFormOpen(true);
+  };
+
+  const openEdit = async (id: string, data: Record<string, any>) => { 
     const extra: Record<string, any> = {};
     if (data.social_links) {
       if (data.social_links.company) extra.company = data.social_links.company;
       if (data.social_links.company_type) extra.company_type = data.social_links.company_type;
     }
-    setEditId(id); setForm({ ...data, ...extra, id }); setFormOpen(true); 
+
+    if (section === "clubs") {
+      const { data: leadershipRows } = await supabase
+        .from("club_members")
+        .select("user_id, name, role, is_active")
+        .eq("club_id", id)
+        .in("role", ["President", "Vice President"])
+        .eq("is_active", true);
+
+      const president = (leadershipRows || []).find((r: any) => r.role === "President");
+      const vicePresident = (leadershipRows || []).find((r: any) => r.role === "Vice President");
+
+      extra.president_user_id = president?.user_id || "";
+      extra.president_name = president?.name || "";
+      extra.vice_president_user_id = vicePresident?.user_id || "";
+      extra.vice_president_name = vicePresident?.name || "";
+    }
+
+    setEditId(id);
+    setForm({ ...data, ...extra, id });
+    setClubPresidentQuery("");
+    setClubPresidentResults([]);
+    setClubVicePresidentQuery("");
+    setClubVicePresidentResults([]);
+    setFormOpen(true); 
   };
 
   const handleDiscoverHackathons = async () => {
@@ -881,7 +975,67 @@ const Admin = () => {
       } else if (section === "hackathons") {
         await upsertHackathon.mutateAsync({ ...base, title: form.title || "", tagline: form.tagline || null, date: form.date || null, end_date: form.end_date || null, location: form.location || null, participants: form.participants ? Number(form.participants) : 0, max_participants: form.max_participants ? Number(form.max_participants) : 100, prize: form.prize || null, status: form.status || "upcoming", tags: form.tags ? (typeof form.tags === "string" ? form.tags.split(",").map((s: string) => s.trim()) : form.tags) : [], gradient: form.gradient || "from-primary to-purple-400", icon: form.icon || "globe", link: form.link || null });
       } else if (section === "clubs") {
-        await upsertClub.mutateAsync({ ...base, name: form.name || "", slug: form.slug || form.name?.toLowerCase().replace(/\s+/g, "-") || "", category: form.category || "Technical", description: form.description || null, tagline: form.tagline || null, members: form.members ? Number(form.members) : 0, founded: form.founded ? Number(form.founded) : null, next_event: form.next_event || null, next_event_price: form.next_event_price ? Number(form.next_event_price) : null, banner_gradient: form.banner_gradient || "from-blue-600/40 to-primary/30", logo_letter: form.logo_letter || form.name?.charAt(0) || "C", focus_tags: form.focus_tags ? (typeof form.focus_tags === "string" ? form.focus_tags.split(",").map((s: string) => s.trim()) : form.focus_tags) : [], advisor: form.advisor || null, instagram: form.instagram || null, linkedin: form.linkedin || null, is_active: form.is_active !== false });
+        if (form.president_user_id && form.vice_president_user_id && form.president_user_id === form.vice_president_user_id) {
+          toast({ title: "Invalid leadership selection", description: "President and Vice President must be different students.", variant: "destructive" });
+          return;
+        }
+
+        const savedClub = await upsertClub.mutateAsync({ ...base, name: form.name || "", slug: form.slug || form.name?.toLowerCase().replace(/\s+/g, "-") || "", category: form.category || "Technical", description: form.description || null, tagline: form.tagline || null, members: form.members ? Number(form.members) : 0, founded: form.founded ? Number(form.founded) : null, next_event: form.next_event || null, next_event_price: form.next_event_price ? Number(form.next_event_price) : null, banner_gradient: form.banner_gradient || "from-blue-600/40 to-primary/30", logo_letter: form.logo_letter || form.name?.charAt(0) || "C", focus_tags: form.focus_tags ? (typeof form.focus_tags === "string" ? form.focus_tags.split(",").map((s: string) => s.trim()) : form.focus_tags) : [], advisor: form.advisor || null, instagram: form.instagram || null, linkedin: form.linkedin || null, is_active: form.is_active !== false });
+
+        // Keep exactly one active President and one active Vice President per club (if selected).
+        await supabase
+          .from("club_members")
+          .update({ role: "Member" })
+          .eq("club_id", savedClub.id)
+          .eq("role", "President")
+          .neq("user_id", form.president_user_id || "00000000-0000-0000-0000-000000000000");
+
+        await supabase
+          .from("club_members")
+          .update({ role: "Member" })
+          .eq("club_id", savedClub.id)
+          .eq("role", "Vice President")
+          .neq("user_id", form.vice_president_user_id || "00000000-0000-0000-0000-000000000000");
+
+        if (form.president_user_id) {
+          const payload = {
+            club_id: savedClub.id,
+            user_id: form.president_user_id,
+            name: form.president_name || "Unknown",
+            role: "President",
+            avatar_initials: (form.president_name || "??").substring(0, 2).toUpperCase(),
+            added_by: user?.id || null,
+            college_id: activeCollegeId || savedClub.college_id,
+            is_active: true,
+          };
+          await supabase.from("club_members").upsert(payload, { onConflict: "club_id,user_id" });
+        } else {
+          await supabase
+            .from("club_members")
+            .update({ role: "Member" })
+            .eq("club_id", savedClub.id)
+            .eq("role", "President");
+        }
+
+        if (form.vice_president_user_id) {
+          const payload = {
+            club_id: savedClub.id,
+            user_id: form.vice_president_user_id,
+            name: form.vice_president_name || "Unknown",
+            role: "Vice President",
+            avatar_initials: (form.vice_president_name || "??").substring(0, 2).toUpperCase(),
+            added_by: user?.id || null,
+            college_id: activeCollegeId || savedClub.college_id,
+            is_active: true,
+          };
+          await supabase.from("club_members").upsert(payload, { onConflict: "club_id,user_id" });
+        } else {
+          await supabase
+            .from("club_members")
+            .update({ role: "Member" })
+            .eq("club_id", savedClub.id)
+            .eq("role", "Vice President");
+        }
       } else if (section === "alumni") {
         await upsertAlumni.mutateAsync({ ...base, name: form.name || "", batch: form.batch || null, department: form.department || null, avatar: form.avatar || form.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2) || "AA", role: form.role || null, company: form.company || null, location: form.location || null, linkedin: form.linkedin || null, specialization: form.specialization || null, achievements: form.achievements ? (typeof form.achievements === "string" ? form.achievements.split(",").map((s: string) => s.trim()) : form.achievements) : [], featured: form.featured === "true" || form.featured === true });
       } else if (section === "ieee_members") {
@@ -2290,6 +2444,113 @@ const Admin = () => {
             <Field label="Logo Letter"><Input className={inputClass} value={form.logo_letter || ""} onChange={(e) => setF("logo_letter", e.target.value)} maxLength={2} /></Field>
             <Field label="Instagram"><Input className={inputClass} value={form.instagram || ""} onChange={(e) => setF("instagram", e.target.value)} /></Field>
             <Field label="LinkedIn"><Input className={inputClass} value={form.linkedin || ""} onChange={(e) => setF("linkedin", e.target.value)} /></Field>
+
+            <div className="mt-5 mb-2 p-3 rounded-xl border border-border/30 bg-secondary/20">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wider">Club Leadership (Search Student)</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Assign 1st President and 2nd President (Vice President) from students.</p>
+            </div>
+
+            <Field label="1st President">
+              <Input
+                className={inputClass}
+                value={clubPresidentQuery}
+                onChange={(e) => setClubPresidentQuery(e.target.value)}
+                placeholder="Search by student name or email"
+              />
+
+              {clubPresidentResults.length > 0 && (
+                <div className="mt-2 border border-border/30 rounded-xl overflow-hidden">
+                  {clubPresidentResults.map((s: any) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setF("president_user_id", s.id);
+                        setF("president_name", s.name || "");
+                        setClubPresidentQuery(s.name || "");
+                        setClubPresidentResults([]);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/40 transition-colors"
+                    >
+                      <span className="text-foreground">{s.name}</span>
+                      {s.email && <span className="text-xs text-muted-foreground ml-2">({s.email})</span>}
+                      {s.branch_name && <span className="text-xs text-muted-foreground ml-2">• {s.branch_name}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {form.president_user_id && (
+                <div className="mt-2 flex items-center justify-between p-2 rounded-lg border border-border/30 bg-secondary/10">
+                  <span className="text-xs text-foreground">Selected: {form.president_name}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      setF("president_user_id", "");
+                      setF("president_name", "");
+                      setClubPresidentQuery("");
+                      setClubPresidentResults([]);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </Field>
+
+            <Field label="2nd President (Vice President)">
+              <Input
+                className={inputClass}
+                value={clubVicePresidentQuery}
+                onChange={(e) => setClubVicePresidentQuery(e.target.value)}
+                placeholder="Search by student name or email"
+              />
+
+              {clubVicePresidentResults.length > 0 && (
+                <div className="mt-2 border border-border/30 rounded-xl overflow-hidden">
+                  {clubVicePresidentResults.map((s: any) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setF("vice_president_user_id", s.id);
+                        setF("vice_president_name", s.name || "");
+                        setClubVicePresidentQuery(s.name || "");
+                        setClubVicePresidentResults([]);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/40 transition-colors"
+                    >
+                      <span className="text-foreground">{s.name}</span>
+                      {s.email && <span className="text-xs text-muted-foreground ml-2">({s.email})</span>}
+                      {s.branch_name && <span className="text-xs text-muted-foreground ml-2">• {s.branch_name}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {form.vice_president_user_id && (
+                <div className="mt-2 flex items-center justify-between p-2 rounded-lg border border-border/30 bg-secondary/10">
+                  <span className="text-xs text-foreground">Selected: {form.vice_president_name}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      setF("vice_president_user_id", "");
+                      setF("vice_president_name", "");
+                      setClubVicePresidentQuery("");
+                      setClubVicePresidentResults([]);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </Field>
           </>
         )}
 
