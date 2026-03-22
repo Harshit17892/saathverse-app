@@ -4,6 +4,7 @@ import { Search, Code, GraduationCap, ArrowLeft, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface StudentResult {
   id: string;
@@ -18,6 +19,7 @@ interface StudentResult {
 }
 
 const SearchResults = () => {
+  const { collegeId } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
   const [input, setInput] = useState(query);
@@ -29,6 +31,9 @@ const SearchResults = () => {
     setInput(query);
     if (query.trim().length < 2) { setResults([]); return; }
 
+    // Tenant isolation: search must always be scoped to the active college.
+    if (!collegeId) { setResults([]); return; }
+
     const fetchResults = async () => {
       setLoading(true);
       const q = query.trim().toLowerCase();
@@ -36,6 +41,7 @@ const SearchResults = () => {
       const { data } = await supabase
         .from("students")
         .select("id, name, email, skills, branch_id, avatar_url, bio, status")
+        .eq("college_id", collegeId)
         .or(`name.ilike.%${q}%,email.ilike.%${q}%,bio.ilike.%${q}%`)
         .limit(50);
 
@@ -45,7 +51,11 @@ const SearchResults = () => {
       const branchIds = [...new Set(combined.filter(s => s.branch_id).map(s => s.branch_id!))];
       let branchMap: Record<string, string> = {};
       if (branchIds.length > 0) {
-        const { data: branches } = await supabase.from("branches").select("id, name").in("id", branchIds);
+        const { data: branches } = await supabase
+          .from("branches")
+          .select("id, name")
+          .eq("college_id", collegeId)
+          .in("id", branchIds);
         if (branches) branchMap = Object.fromEntries(branches.map(b => [b.id, b.name]));
       }
 
@@ -53,7 +63,7 @@ const SearchResults = () => {
       setLoading(false);
     };
     fetchResults();
-  }, [query]);
+  }, [query, collegeId]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
