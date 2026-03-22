@@ -11,6 +11,7 @@ import SkillGalaxy from "@/components/branch/SkillGalaxy";
 import LivePulse from "@/components/branch/LivePulse";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { branchesData } from "@/data/branchesData";
 import { toast } from "sonner";
 
 const branchMeta: Record<string, { label: string; color: string; icon: typeof Code }> = {
@@ -224,27 +225,103 @@ const TopStudentCarousel = ({ students }: { students: TopStudent[] }) => {
 
 type StudentDisplay = { id?: string; name: string; dept: string; year: string; title: string; skills: string[]; avatar_url?: string | null; isBot?: boolean };
 
-const inferBranchSlugFromText = (value?: string | null) => {
-  const v = (value || "").toLowerCase();
-  if (!v) return null;
+const normalizeBranchText = (value?: string | null) =>
+  (value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
-  if (v.includes("mbbs") || v.includes("medical")) return "medical";
-  if (v.includes("nursing") || v.includes("paramedical")) return "nursing-paramedical";
-  if (v.includes("pharmacy") || v.includes("pharma")) return "pharmacy";
-  if (v.includes("computer") || v.includes("cse") || v.includes("artificial intelligence") || v.includes("data science")) return "engineering-technology";
-  if (v.includes("engineering")) return "engineering-technology";
-  if (v.includes("science")) return "science";
-  if (v.includes("commerce") || v.includes("account")) return "commerce";
-  if (v.includes("management") || v.includes("business")) return "management";
-  if (v.includes("education")) return "education";
-  if (v.includes("law")) return "law";
-  if (v.includes("arts") || v.includes("humanities")) return "arts-humanities";
-  if (v.includes("design")) return "design";
-  if (v.includes("architecture") || v.includes("planning")) return "architecture-planning";
-  if (v.includes("agriculture")) return "agriculture";
-  if (v.includes("diploma")) return "diploma";
+const dynamicBranchMapping: Record<string, string[]> = branchesData.reduce((acc, branch) => {
+  const normalizedKeys = [branch.name, branch.slug, ...branch.subBranches.map((sub) => sub.name)]
+    .map((item) => normalizeBranchText(item))
+    .filter(Boolean);
 
-  return null;
+  acc[branch.slug] = Array.from(new Set(normalizedKeys));
+  return acc;
+}, {} as Record<string, string[]>);
+
+const subBranchToMainSlug = new Map<string, string>();
+for (const [mainSlug, normalizedKeys] of Object.entries(dynamicBranchMapping)) {
+  for (const key of normalizedKeys) {
+    subBranchToMainSlug.set(key, mainSlug);
+  }
+}
+
+const aliasToMainSlugs: Record<string, string[]> = {
+  bsms: ["medical"],
+  taxation: ["commerce"],
+  tax: ["commerce"],
+  auditing: ["commerce", "management"],
+  audit: ["commerce", "management"],
+  bcom: ["commerce"],
+  "b com": ["commerce"],
+  accounting: ["commerce"],
+  finance: ["commerce"],
+  mba: ["management"],
+  bba: ["management"],
+};
+
+const keywordToMainSlugs: Array<{ key: string; slugs: string[] }> = [
+  { key: "mbbs", slugs: ["medical"] },
+  { key: "medical", slugs: ["medical"] },
+  { key: "nursing", slugs: ["nursing-paramedical"] },
+  { key: "paramedical", slugs: ["nursing-paramedical"] },
+  { key: "pharmacy", slugs: ["pharmacy"] },
+  { key: "pharma", slugs: ["pharmacy"] },
+  { key: "computer", slugs: ["engineering-technology", "computer-applications"] },
+  { key: "cse", slugs: ["engineering-technology", "computer-applications"] },
+  { key: "artificial intelligence", slugs: ["engineering-technology", "computer-applications"] },
+  { key: "data science", slugs: ["engineering-technology", "computer-applications"] },
+  { key: "engineering", slugs: ["engineering-technology"] },
+  { key: "science", slugs: ["science"] },
+  { key: "commerce", slugs: ["commerce"] },
+  { key: "management", slugs: ["management"] },
+  { key: "business", slugs: ["management"] },
+  { key: "education", slugs: ["education"] },
+  { key: "law", slugs: ["law"] },
+  { key: "humanities", slugs: ["arts-humanities"] },
+  { key: "arts", slugs: ["arts-humanities"] },
+  { key: "design", slugs: ["design"] },
+  { key: "architecture", slugs: ["architecture-planning"] },
+  { key: "planning", slugs: ["architecture-planning"] },
+  { key: "agriculture", slugs: ["agriculture"] },
+  { key: "diploma", slugs: ["diploma"] },
+];
+
+const inferBranchSlugsFromText = (value?: string | null): string[] => {
+  const normalized = normalizeBranchText(value);
+  if (!normalized) return [];
+
+  const matches = new Set<string>();
+
+  const direct = subBranchToMainSlug.get(normalized);
+  if (direct) matches.add(direct);
+
+  // Dynamic partial matching across all onboarding branch/sub-branch labels.
+  // This catches DB text variants like extra words around a known sub-branch.
+  for (const [mainSlug, normalizedKeys] of Object.entries(dynamicBranchMapping)) {
+    const hasContainMatch = normalizedKeys.some((key) => {
+      if (!key) return false;
+      if (key.length < 6) return false;
+      return normalized.includes(key) || (normalized.length >= 5 && key.includes(normalized));
+    });
+    if (hasContainMatch) matches.add(mainSlug);
+  }
+
+  for (const [alias, slugs] of Object.entries(aliasToMainSlugs)) {
+    if (normalized.includes(alias)) {
+      slugs.forEach((slug) => matches.add(slug));
+    }
+  }
+
+  for (const rule of keywordToMainSlugs) {
+    if (normalized.includes(rule.key)) {
+      rule.slugs.forEach((slug) => matches.add(slug));
+    }
+  }
+
+  return Array.from(matches);
 };
 
 const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDisplay; i: number; onConnect?: (studentId: string, studentName: string) => void; isSent?: boolean }) => {
@@ -422,15 +499,20 @@ const BranchDetail = () => {
           .from("students")
           .select("*, main_branch:main_branches(name, slug), specialization:specializations(name), branches(name, slug)")
           .eq("college_id", collegeId)
-          .is("main_branch_id", null)
           .order("created_at", { ascending: false });
 
         fallbackStudents = (fallbackData || []).filter((s: any) => {
-          const inferred =
-            inferBranchSlugFromText(s.specialization?.name) ||
-            inferBranchSlugFromText(s.branch_name) ||
-            inferBranchSlugFromText(s.branches?.name);
-          return inferred === normalizedBranchSlug;
+          const possibleSlugs = new Set<string>();
+
+          if (s.main_branch?.slug) {
+            possibleSlugs.add(String(s.main_branch.slug));
+          }
+
+          [s.specialization?.name, s.branch_name, s.branches?.name, s.main_branch?.name].forEach((text) => {
+            inferBranchSlugsFromText(text).forEach((slug) => possibleSlugs.add(slug));
+          });
+
+          return possibleSlugs.has(normalizedBranchSlug);
         });
       }
 
