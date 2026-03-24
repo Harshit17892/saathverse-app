@@ -236,6 +236,135 @@ export type Database = {
           },
         ]
       }
+      branch_match_requests: {
+        Row: {
+          branch_id: string | null
+          college_id: string
+          created_at: string
+          id: string
+          needed: string
+          posted_by: string
+          posted_by_name: string | null
+          scope: string
+          status: string
+          title: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          branch_id?: string | null
+          college_id: string
+          created_at?: string
+          id?: string
+          needed: string
+          posted_by?: string
+          posted_by_name?: string | null
+          scope?: string
+          status?: string
+          title: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          branch_id?: string | null
+          college_id?: string
+          created_at?: string
+          id?: string
+          needed?: string
+          posted_by?: string
+          posted_by_name?: string | null
+          scope?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_match_requests_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_match_requests_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "colleges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_opportunities: {
+        Row: {
+          branch_id: string | null
+          college_id: string
+          created_at: string
+          created_by: string | null
+          cta_label: string
+          deadline: string | null
+          id: string
+          is_active: boolean
+          link: string | null
+          mode: string
+          opportunity_type: string
+          source: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          college_id: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string
+          deadline?: string | null
+          id?: string
+          is_active?: boolean
+          link?: string | null
+          mode?: string
+          opportunity_type?: string
+          source?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          college_id?: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string
+          deadline?: string | null
+          id?: string
+          is_active?: boolean
+          link?: string | null
+          mode?: string
+          opportunity_type?: string
+          source?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_opportunities_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_opportunities_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "colleges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           college_id: string | null
