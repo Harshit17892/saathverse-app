@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
-import { Briefcase, CalendarClock, Flag, Plus, Rocket, ShieldCheck, Users, WandSparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Briefcase, CalendarClock, ChevronLeft, ChevronRight, Flag, Plus, Rocket, ShieldCheck, Users, WandSparkles } from "lucide-react";
 
 type Opportunity = {
   id: string;
@@ -81,17 +81,19 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
 
   const [tab, setTab] = useState<"opportunities" | "matchmaker">("opportunities");
   const [showComposer, setShowComposer] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [requests, setRequests] = useState<MatchRequest[]>(seed.requests);
   const [form, setForm] = useState({ title: "", needed: "", urgency: "Medium" as MatchRequest["urgency"], scope: "This branch" as MatchRequest["scope"] });
+  const opportunitiesRef = useRef<HTMLDivElement | null>(null);
+  const requestsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setRequests(seed.requests);
-    setShowAll(false);
   }, [seed]);
 
-  const visibleOpportunities = showAll ? seed.opportunities : seed.opportunities.slice(0, 3);
-  const visibleRequests = showAll ? requests : requests.slice(0, 3);
+  const scrollRail = (target: "opportunities" | "requests", dir: -1 | 1) => {
+    const ref = target === "opportunities" ? opportunitiesRef : requestsRef;
+    ref.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
 
   const submitRequest = () => {
     const title = form.title.trim();
@@ -143,7 +145,7 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
             return (
               <button
                 key={item.key}
-                onClick={() => { setTab(item.key as "opportunities" | "matchmaker"); setShowAll(false); }}
+                onClick={() => { setTab(item.key as "opportunities" | "matchmaker"); }}
                 className={`flex-1 h-9 rounded-lg text-xs font-semibold transition-all border ${active ? "bg-cyan-500/15 border-cyan-400/30 text-cyan-200" : "bg-transparent border-transparent text-muted-foreground hover:text-foreground"}`}
               >
                 <span className="inline-flex items-center gap-1.5">
@@ -165,43 +167,40 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
             >
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Auto-refresh window: 6h</span>
-                <span>Source: trusted feed + campus updates</span>
+                <div className="flex items-center gap-2">
+                  <span>Source: trusted feed + campus updates</span>
+                  <button onClick={() => scrollRail("opportunities", -1)} className="h-6 w-6 rounded-md border border-border/30 hover:bg-secondary/50 inline-flex items-center justify-center"><ChevronLeft className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => scrollRail("opportunities", 1)} className="h-6 w-6 rounded-md border border-border/30 hover:bg-secondary/50 inline-flex items-center justify-center"><ChevronRight className="h-3.5 w-3.5" /></button>
+                </div>
               </div>
 
-              {visibleOpportunities.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border/30 bg-background/30 px-3.5 py-3">
-                  <div className="flex items-start gap-2">
-                    <div className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${typePill[item.type]}`}>{item.type}</div>
-                    <div className="ml-auto text-[10px] text-amber-300 border border-amber-400/20 bg-amber-500/10 rounded-full px-2 py-0.5">Deadline: {item.deadline}</div>
-                  </div>
+              <div ref={opportunitiesRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {seed.opportunities.map((item) => (
+                  <div key={item.id} className="min-w-[290px] md:min-w-[340px] snap-start rounded-xl border border-border/30 bg-background/30 px-3.5 py-3">
+                    <div className="flex items-start gap-2">
+                      <div className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${typePill[item.type]}`}>{item.type}</div>
+                      <div className="ml-auto text-[10px] text-amber-300 border border-amber-400/20 bg-amber-500/10 rounded-full px-2 py-0.5">Deadline: {item.deadline}</div>
+                    </div>
 
-                  <p className="mt-2 text-sm font-semibold text-foreground leading-snug">{item.title}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {item.tags.map((tag) => (
-                      <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full border border-border/40 text-muted-foreground">{tag}</span>
-                    ))}
-                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-primary/30 text-primary">{item.mode}</span>
-                  </div>
+                    <p className="mt-2 text-sm font-semibold text-foreground leading-snug">{item.title}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.tags.map((tag) => (
+                        <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full border border-border/40 text-muted-foreground">{tag}</span>
+                      ))}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-primary/30 text-primary">{item.mode}</span>
+                    </div>
 
-                  <div className="mt-3 flex gap-2">
-                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="h-8 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 text-cyan-200 text-xs font-semibold inline-flex items-center">
-                      {item.ctaLabel}
-                    </a>
-                    <button className="h-8 px-3 rounded-lg bg-secondary/40 hover:bg-secondary/60 border border-border/30 text-xs text-foreground transition-colors">
-                      Save
-                    </button>
+                    <div className="mt-3 flex gap-2">
+                      <a href={item.link} target="_blank" rel="noopener noreferrer" className="h-8 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 text-cyan-200 text-xs font-semibold inline-flex items-center">
+                        {item.ctaLabel}
+                      </a>
+                      <button className="h-8 px-3 rounded-lg bg-secondary/40 hover:bg-secondary/60 border border-border/30 text-xs text-foreground transition-colors">
+                        Save
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-
-              {seed.opportunities.length > 3 && (
-                <button
-                  onClick={() => setShowAll((v) => !v)}
-                  className="w-full h-8 rounded-lg border border-border/30 text-xs text-primary hover:bg-primary/10 transition-colors"
-                >
-                  {showAll ? "Show less" : `Show ${seed.opportunities.length - 3} more opportunities`}
-                </button>
-              )}
+                ))}
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -213,12 +212,16 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
             >
               <div className="flex items-center justify-between">
                 <p className="text-[10px] text-muted-foreground">Live student asks and open bounties</p>
-                <button
-                  onClick={() => setShowComposer((v) => !v)}
-                  className="h-8 px-3 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 text-violet-200 text-xs font-semibold inline-flex items-center gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Post Request
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowComposer((v) => !v)}
+                    className="h-8 px-3 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 text-violet-200 text-xs font-semibold inline-flex items-center gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Post Request
+                  </button>
+                  <button onClick={() => scrollRail("requests", -1)} className="h-6 w-6 rounded-md border border-border/30 hover:bg-secondary/50 inline-flex items-center justify-center"><ChevronLeft className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => scrollRail("requests", 1)} className="h-6 w-6 rounded-md border border-border/30 hover:bg-secondary/50 inline-flex items-center justify-center"><ChevronRight className="h-3.5 w-3.5" /></button>
+                </div>
               </div>
 
               <AnimatePresence>
@@ -272,39 +275,32 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
                 )}
               </AnimatePresence>
 
-              {visibleRequests.map((item) => (
-                <div key={item.id} className="rounded-xl border border-border/30 bg-background/30 px-3.5 py-3">
-                  <div className="flex items-center gap-2">
-                    <Flag className="h-3.5 w-3.5 text-violet-300" />
-                    <p className="text-sm font-semibold text-foreground leading-snug">{item.title}</p>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Need: {item.needed}</p>
+              <div ref={requestsRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {requests.map((item) => (
+                  <div key={item.id} className="min-w-[290px] md:min-w-[340px] snap-start rounded-xl border border-border/30 bg-background/30 px-3.5 py-3">
+                    <div className="flex items-center gap-2">
+                      <Flag className="h-3.5 w-3.5 text-violet-300" />
+                      <p className="text-sm font-semibold text-foreground leading-snug">{item.title}</p>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">Need: {item.needed}</p>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${urgencyPill[item.urgency]}`}>{item.urgency}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-border/40 text-muted-foreground">{item.scope}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto">{item.postedBy} · {item.postedAt}</span>
-                  </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${urgencyPill[item.urgency]}`}>{item.urgency}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border/40 text-muted-foreground">{item.scope}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{item.postedBy} · {item.postedAt}</span>
+                    </div>
 
-                  <div className="mt-3 flex gap-2">
-                    <button className="h-8 px-3 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 text-violet-200 text-xs font-semibold">
-                      Join
-                    </button>
-                    <button className="h-8 px-3 rounded-lg bg-secondary/40 hover:bg-secondary/60 border border-border/30 text-xs text-foreground">
-                      Message
-                    </button>
+                    <div className="mt-3 flex gap-2">
+                      <button className="h-8 px-3 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 text-violet-200 text-xs font-semibold">
+                        Join
+                      </button>
+                      <button className="h-8 px-3 rounded-lg bg-secondary/40 hover:bg-secondary/60 border border-border/30 text-xs text-foreground">
+                        Message
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-
-              {requests.length > 3 && (
-                <button
-                  onClick={() => setShowAll((v) => !v)}
-                  className="w-full h-8 rounded-lg border border-border/30 text-xs text-primary hover:bg-primary/10 transition-colors"
-                >
-                  {showAll ? "Show less" : `Show ${requests.length - 3} more requests`}
-                </button>
-              )}
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
