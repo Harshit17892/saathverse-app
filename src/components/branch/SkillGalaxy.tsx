@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Radar, Sparkles, TrendingUp } from "lucide-react";
 
 interface SkillNode {
   name: string;
@@ -120,26 +120,116 @@ const connections: [number, number][] = [
   [9, 13], [10, 7], [11, 2], [12, 13],
 ];
 
+const branchThemes: Record<string, {
+  panel: string;
+  glowA: string;
+  glowB: string;
+  line: string;
+  node: string;
+  nodeActive: string;
+  badge: string;
+}> = {
+  "engineering-technology": {
+    panel: "from-cyan-500/12 via-transparent to-violet-500/10",
+    glowA: "rgba(34,211,238,0.20)",
+    glowB: "rgba(168,85,247,0.18)",
+    line: "#67e8f9",
+    node: "#22d3ee",
+    nodeActive: "#a78bfa",
+    badge: "text-cyan-200 border-cyan-400/30 bg-cyan-500/10",
+  },
+  medical: {
+    panel: "from-rose-500/12 via-transparent to-orange-500/10",
+    glowA: "rgba(251,113,133,0.20)",
+    glowB: "rgba(251,146,60,0.18)",
+    line: "#fb7185",
+    node: "#fb7185",
+    nodeActive: "#fb923c",
+    badge: "text-rose-200 border-rose-400/30 bg-rose-500/10",
+  },
+  science: {
+    panel: "from-blue-500/12 via-transparent to-emerald-500/10",
+    glowA: "rgba(59,130,246,0.20)",
+    glowB: "rgba(16,185,129,0.18)",
+    line: "#60a5fa",
+    node: "#3b82f6",
+    nodeActive: "#10b981",
+    badge: "text-blue-200 border-blue-400/30 bg-blue-500/10",
+  },
+  commerce: {
+    panel: "from-amber-500/12 via-transparent to-sky-500/10",
+    glowA: "rgba(245,158,11,0.20)",
+    glowB: "rgba(14,165,233,0.18)",
+    line: "#fbbf24",
+    node: "#f59e0b",
+    nodeActive: "#38bdf8",
+    badge: "text-amber-200 border-amber-400/30 bg-amber-500/10",
+  },
+  default: {
+    panel: "from-primary/12 via-transparent to-accent/10",
+    glowA: "rgba(124,58,237,0.20)",
+    glowB: "rgba(59,130,246,0.18)",
+    line: "#a78bfa",
+    node: "#8b5cf6",
+    nodeActive: "#22d3ee",
+    badge: "text-primary border-primary/30 bg-primary/10",
+  },
+};
+
+const getSkillTier = (count: number): "Emerging" | "Strong" | "Hot" => {
+  if (count >= 32) return "Hot";
+  if (count >= 20) return "Strong";
+  return "Emerging";
+};
+
 const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
   const [activeNode, setActiveNode] = useState<number | null>(null);
-  const nodes = generateSkillNodes(branchSlug);
+  const normalized = (branchSlug || "").replace(/-[a-f0-9]{8}$/i, "");
+  const nodes = generateSkillNodes(normalized);
+  const theme = branchThemes[normalized] || branchThemes.default;
+  const focused = nodes[activeNode ?? 0];
+  const totalDensity = nodes.reduce((sum, n) => sum + n.count, 0);
+  const avgDensity = Math.round(totalDensity / nodes.length);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/30 glass">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
+      <div className={`absolute inset-0 bg-gradient-to-br ${theme.panel}`} />
+      <div
+        className="absolute -top-16 -left-16 h-56 w-56 rounded-full blur-3xl"
+        style={{ backgroundColor: theme.glowA }}
+      />
+      <div
+        className="absolute -bottom-24 -right-20 h-64 w-64 rounded-full blur-3xl"
+        style={{ backgroundColor: theme.glowB }}
+      />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
 
-      <div className="relative px-6 pt-5 pb-2 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-primary" />
-        <span className="text-xs font-bold text-primary uppercase tracking-widest">Skill Galaxy</span>
-        <span className="text-[10px] text-muted-foreground ml-auto">Tap a skill to explore</span>
+      <div className="relative px-5 pt-4 pb-2 flex items-start gap-2">
+        <div className="h-8 w-8 rounded-lg border border-border/40 bg-background/40 flex items-center justify-center shrink-0">
+          <Sparkles className="w-4 h-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <span className="text-xs font-bold text-primary uppercase tracking-widest">Skill Galaxy</span>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Tap a node to inspect branch strength map</p>
+        </div>
+        <div className="ml-auto text-[10px] px-2 py-1 rounded-full border border-border/40 bg-background/40 text-muted-foreground">
+          {nodes.length} skills
+        </div>
       </div>
 
-      <div className="relative w-full aspect-[2/1] min-h-[280px]">
+      <div className="relative px-5 pb-2 flex items-center gap-2">
+        <span className={`text-[10px] px-2 py-1 rounded-full border ${theme.badge}`}>Avg Density: {avgDensity}</span>
+        <span className="text-[10px] px-2 py-1 rounded-full border border-border/40 bg-background/40 text-muted-foreground inline-flex items-center gap-1">
+          <Radar className="w-3 h-3" /> Live map
+        </span>
+      </div>
+
+      <div className="relative w-full aspect-[2/1] min-h-[250px]">
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
           <defs>
             <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+              <stop offset="0%" stopColor={theme.node} stopOpacity="0.65" />
+              <stop offset="100%" stopColor={theme.node} stopOpacity="0" />
             </radialGradient>
           </defs>
 
@@ -153,8 +243,8 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
                 y1={nodes[a].y}
                 x2={nodes[b].x}
                 y2={nodes[b].y}
-                stroke={isActive ? "hsl(var(--accent))" : "hsl(var(--primary))"}
-                strokeOpacity={isActive ? 0.6 : 0.15}
+                stroke={isActive ? theme.nodeActive : theme.line}
+                strokeOpacity={isActive ? 0.72 : 0.18}
                 strokeWidth={isActive ? 0.4 : 0.2}
                 animate={{
                   strokeOpacity: isActive ? [0.4, 0.8, 0.4] : [0.1, 0.2, 0.1],
@@ -169,7 +259,7 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
             <motion.circle
               key={`particle-${i}`}
               r="0.4"
-              fill="hsl(var(--accent))"
+              fill={theme.nodeActive}
               opacity={0.7}
               animate={{
                 cx: [nodes[a].x, nodes[b].x],
@@ -213,7 +303,7 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
                   cx={node.x}
                   cy={node.y}
                   r={r}
-                  fill={isActive ? "hsl(var(--accent))" : "hsl(var(--primary))"}
+                  fill={isActive ? theme.nodeActive : theme.node}
                   opacity={isActive ? 0.9 : 0.5}
                   className="cursor-pointer"
                   onMouseEnter={() => setActiveNode(i)}
@@ -232,7 +322,7 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
                   y={node.y + r + 2.5}
                   textAnchor="middle"
                   fill={isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
-                  fontSize="2.2"
+                  fontSize="2"
                   fontWeight={isActive ? "700" : "500"}
                   className="pointer-events-none select-none"
                   style={{ fontFamily: "'Space Grotesk', sans-serif" }}
@@ -249,7 +339,7 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
                       width="8"
                       height="3"
                       rx="1"
-                      fill="hsl(var(--accent))"
+                      fill={theme.nodeActive}
                       opacity="0.9"
                     />
                     <text
@@ -269,6 +359,19 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
             );
           })}
         </svg>
+      </div>
+
+      <div className="relative px-5 pb-4 pt-1">
+        <div className="rounded-xl border border-border/35 bg-background/35 px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-foreground truncate">{focused.name}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{focused.count} students · {getSkillTier(focused.count)} momentum</p>
+          </div>
+          <span className={`text-[10px] px-2 py-1 rounded-full border ${theme.badge} inline-flex items-center gap-1 shrink-0`}>
+            <TrendingUp className="w-3 h-3" />
+            {getSkillTier(focused.count)}
+          </span>
+        </div>
       </div>
     </div>
   );
