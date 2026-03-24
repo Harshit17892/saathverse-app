@@ -1,16 +1,18 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
-import { Radar, Sparkles, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Sparkles, TrendingUp } from "lucide-react";
 
-interface SkillNode {
+interface SkillStat {
   name: string;
   count: number;
-  x: number;
-  y: number;
-  size: number;
 }
 
-const branchSkillMap: Record<string, Array<{ name: string; count: number }>> = {
+interface SkillWithMeta extends SkillStat {
+  index: number;
+  tier: SkillTier;
+}
+
+const branchSkillMap: Record<string, SkillStat[]> = {
   "engineering-technology": [
     { name: "React", count: 42 },
     { name: "Python", count: 38 },
@@ -94,102 +96,107 @@ const defaultSkills = [
   { name: "Mentorship", count: 13 },
 ];
 
-const generateSkillNodes = (branchSlug?: string): SkillNode[] => {
+const getBranchSkills = (branchSlug?: string): SkillStat[] => {
   const normalized = (branchSlug || "").replace(/-[a-f0-9]{8}$/i, "");
-  const skills = branchSkillMap[normalized] || defaultSkills;
-
-  const maxCount = Math.max(...skills.map(s => s.count));
-  const positions = [
-    [50, 30], [25, 50], [75, 50], [40, 65], [60, 35],
-    [15, 35], [85, 40], [30, 80], [70, 75], [50, 55],
-    [20, 65], [80, 25], [55, 85], [45, 15],
-  ];
-
-  return skills.map((s, i) => ({
-    name: s.name,
-    count: s.count,
-    x: positions[i][0],
-    y: positions[i][1],
-    size: 20 + (s.count / maxCount) * 40,
-  }));
+  return branchSkillMap[normalized] || defaultSkills;
 };
-
-const connections: [number, number][] = [
-  [0, 4], [0, 8], [1, 3], [1, 5], [2, 6], [2, 4],
-  [3, 9], [4, 8], [5, 10], [6, 11], [7, 3], [8, 12],
-  [9, 13], [10, 7], [11, 2], [12, 13],
-];
 
 const branchThemes: Record<string, {
   panel: string;
   glowA: string;
   glowB: string;
-  line: string;
-  node: string;
-  nodeActive: string;
+  hexBase: string;
+  hexActive: string;
   badge: string;
 }> = {
   "engineering-technology": {
     panel: "from-cyan-500/12 via-transparent to-violet-500/10",
     glowA: "rgba(34,211,238,0.20)",
     glowB: "rgba(168,85,247,0.18)",
-    line: "#67e8f9",
-    node: "#22d3ee",
-    nodeActive: "#a78bfa",
+    hexBase: "#22d3ee",
+    hexActive: "#a78bfa",
     badge: "text-cyan-200 border-cyan-400/30 bg-cyan-500/10",
   },
   medical: {
     panel: "from-rose-500/12 via-transparent to-orange-500/10",
     glowA: "rgba(251,113,133,0.20)",
     glowB: "rgba(251,146,60,0.18)",
-    line: "#fb7185",
-    node: "#fb7185",
-    nodeActive: "#fb923c",
+    hexBase: "#fb7185",
+    hexActive: "#fb923c",
     badge: "text-rose-200 border-rose-400/30 bg-rose-500/10",
   },
   science: {
     panel: "from-blue-500/12 via-transparent to-emerald-500/10",
     glowA: "rgba(59,130,246,0.20)",
     glowB: "rgba(16,185,129,0.18)",
-    line: "#60a5fa",
-    node: "#3b82f6",
-    nodeActive: "#10b981",
+    hexBase: "#3b82f6",
+    hexActive: "#10b981",
     badge: "text-blue-200 border-blue-400/30 bg-blue-500/10",
   },
   commerce: {
     panel: "from-amber-500/12 via-transparent to-sky-500/10",
     glowA: "rgba(245,158,11,0.20)",
     glowB: "rgba(14,165,233,0.18)",
-    line: "#fbbf24",
-    node: "#f59e0b",
-    nodeActive: "#38bdf8",
+    hexBase: "#f59e0b",
+    hexActive: "#38bdf8",
     badge: "text-amber-200 border-amber-400/30 bg-amber-500/10",
   },
   default: {
     panel: "from-primary/12 via-transparent to-accent/10",
     glowA: "rgba(124,58,237,0.20)",
     glowB: "rgba(59,130,246,0.18)",
-    line: "#a78bfa",
-    node: "#8b5cf6",
-    nodeActive: "#22d3ee",
+    hexBase: "#8b5cf6",
+    hexActive: "#22d3ee",
     badge: "text-primary border-primary/30 bg-primary/10",
   },
 };
 
-const getSkillTier = (count: number): "Emerging" | "Strong" | "Hot" => {
+type SkillTier = "Emerging" | "Strong" | "Hot";
+
+const getSkillTier = (count: number): SkillTier => {
   if (count >= 32) return "Hot";
   if (count >= 20) return "Strong";
   return "Emerging";
 };
 
+const chunk = <T,>(arr: T[], size: number): T[][] => {
+  const rows: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) rows.push(arr.slice(i, i + size));
+  return rows;
+};
+
 const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
-  const [activeNode, setActiveNode] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const normalized = (branchSlug || "").replace(/-[a-f0-9]{8}$/i, "");
-  const nodes = generateSkillNodes(normalized);
+  const skills = getBranchSkills(normalized);
   const theme = branchThemes[normalized] || branchThemes.default;
-  const focused = nodes[activeNode ?? 0];
-  const totalDensity = nodes.reduce((sum, n) => sum + n.count, 0);
-  const avgDensity = Math.round(totalDensity / nodes.length);
+  const focused = skills[activeIndex] || skills[0];
+  const totalDensity = skills.reduce((sum, s) => sum + s.count, 0);
+  const avgDensity = Math.round(totalDensity / skills.length);
+  const maxCount = Math.max(...skills.map(s => s.count));
+  const minCount = Math.min(...skills.map(s => s.count));
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [normalized]);
+
+  const rows = useMemo(() => chunk(skills, 4), [skills]);
+
+  const laneMap = useMemo(() => {
+    const lanes: Record<SkillTier, SkillWithMeta[]> = {
+      Hot: [],
+      Strong: [],
+      Emerging: [],
+    };
+    skills.forEach((skill, index) => {
+      lanes[getSkillTier(skill.count)].push({
+        ...skill,
+        index,
+        tier: getSkillTier(skill.count),
+      });
+    });
+    return lanes;
+  }, [skills]);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/30 glass">
@@ -210,155 +217,99 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
         </div>
         <div className="min-w-0">
           <span className="text-xs font-bold text-primary uppercase tracking-widest">Skill Galaxy</span>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Tap a node to inspect branch strength map</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Hex heatmap + quick skill lanes</p>
         </div>
         <div className="ml-auto text-[10px] px-2 py-1 rounded-full border border-border/40 bg-background/40 text-muted-foreground">
-          {nodes.length} skills
+          {skills.length} skills
         </div>
       </div>
 
       <div className="relative px-5 pb-2 flex items-center gap-2">
         <span className={`text-[10px] px-2 py-1 rounded-full border ${theme.badge}`}>Avg Density: {avgDensity}</span>
         <span className="text-[10px] px-2 py-1 rounded-full border border-border/40 bg-background/40 text-muted-foreground inline-flex items-center gap-1">
-          <Radar className="w-3 h-3" /> Live map
+          Heatmap View
         </span>
       </div>
 
-      <div className="relative w-full aspect-[2/1] min-h-[250px]">
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor={theme.node} stopOpacity="0.65" />
-              <stop offset="100%" stopColor={theme.node} stopOpacity="0" />
-            </radialGradient>
-          </defs>
+      <div className="relative px-3 sm:px-5 pt-1 pb-3">
+        <div className="relative rounded-2xl border border-border/35 bg-background/25 px-2 sm:px-3 py-4 sm:py-5 overflow-hidden">
+          <div className="absolute inset-0 opacity-20" style={{ backgroundColor: theme.hexBase }} />
+          <div className="relative space-y-1.5 sm:space-y-2">
+            {rows.map((row, rowIndex) => (
+              <div
+                key={`row-${rowIndex}`}
+                className="flex justify-center gap-2 sm:gap-3"
+                style={{ marginLeft: rowIndex % 2 ? "2rem" : "0" }}
+              >
+                {row.map((skill, colIndex) => {
+                  const index = rowIndex * 4 + colIndex;
+                  const isActive = activeIndex === index;
+                  const ratio = (skill.count - minCount) / Math.max(maxCount - minCount, 1);
 
-          {/* Connections */}
-          {connections.map(([a, b], i) => {
-            const isActive = activeNode === a || activeNode === b;
-            return (
-              <motion.line
-                key={`conn-${i}`}
-                x1={nodes[a].x}
-                y1={nodes[a].y}
-                x2={nodes[b].x}
-                y2={nodes[b].y}
-                stroke={isActive ? theme.nodeActive : theme.line}
-                strokeOpacity={isActive ? 0.72 : 0.18}
-                strokeWidth={isActive ? 0.4 : 0.2}
-                animate={{
-                  strokeOpacity: isActive ? [0.4, 0.8, 0.4] : [0.1, 0.2, 0.1],
-                }}
-                transition={{ duration: 3, repeat: Infinity, delay: i * 0.2 }}
-              />
-            );
-          })}
-
-          {/* Traveling particles on connections */}
-          {connections.slice(0, 6).map(([a, b], i) => (
-            <motion.circle
-              key={`particle-${i}`}
-              r="0.4"
-              fill={theme.nodeActive}
-              opacity={0.7}
-              animate={{
-                cx: [nodes[a].x, nodes[b].x],
-                cy: [nodes[a].y, nodes[b].y],
-              }}
-              transition={{
-                duration: 3 + i,
-                repeat: Infinity,
-                repeatType: "reverse",
-                ease: "easeInOut",
-                delay: i * 0.8,
-              }}
-            />
-          ))}
-
-          {/* Nodes */}
-          {nodes.map((node, i) => {
-            const isActive = activeNode === i;
-            const r = node.size / 10;
-            return (
-              <g key={i}>
-                {/* Pulse ring */}
-                {isActive && (
-                  <motion.circle
-                    cx={node.x}
-                    cy={node.y}
-                    r={r + 2}
-                    fill="none"
-                    stroke="hsl(var(--accent))"
-                    strokeWidth="0.15"
-                    animate={{ r: [r + 1, r + 4], opacity: [0.6, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  />
-                )}
-
-                {/* Glow */}
-                <circle cx={node.x} cy={node.y} r={r * 2} fill="url(#nodeGlow)" opacity={isActive ? 0.5 : 0.2} />
-
-                {/* Main node */}
-                <motion.circle
-                  cx={node.x}
-                  cy={node.y}
-                  r={r}
-                  fill={isActive ? theme.nodeActive : theme.node}
-                  opacity={isActive ? 0.9 : 0.5}
-                  className="cursor-pointer"
-                  onMouseEnter={() => setActiveNode(i)}
-                  onMouseLeave={() => setActiveNode(null)}
-                  whileHover={{ scale: 1.3 }}
-                  animate={{
-                    y: [0, -0.5, 0, 0.5, 0],
-                  }}
-                  transition={{ duration: 4 + i * 0.3, repeat: Infinity }}
-                  style={{ originX: `${node.x}px`, originY: `${node.y}px` }}
-                />
-
-                {/* Label */}
-                <text
-                  x={node.x}
-                  y={node.y + r + 2.5}
-                  textAnchor="middle"
-                  fill={isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
-                  fontSize="2"
-                  fontWeight={isActive ? "700" : "500"}
-                  className="pointer-events-none select-none"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                >
-                  {node.name}
-                </text>
-
-                {/* Count badge */}
-                {isActive && (
-                  <motion.g initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }}>
-                    <rect
-                      x={node.x - 4}
-                      y={node.y - r - 4.5}
-                      width="8"
-                      height="3"
-                      rx="1"
-                      fill={theme.nodeActive}
-                      opacity="0.9"
-                    />
-                    <text
-                      x={node.x}
-                      y={node.y - r - 2.2}
-                      textAnchor="middle"
-                      fill="hsl(var(--accent-foreground))"
-                      fontSize="1.8"
-                      fontWeight="700"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  return (
+                    <motion.button
+                      key={skill.name}
+                      type="button"
+                      onClick={() => setActiveIndex(index)}
+                      whileHover={{ y: -2, scale: 1.03 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="relative h-16 w-16 sm:h-20 sm:w-20 text-left p-0 border-0 cursor-pointer"
+                      style={{
+                        clipPath: "polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0% 50%)",
+                        backgroundColor: isActive ? theme.hexActive : theme.hexBase,
+                        opacity: isActive ? 1 : 0.35 + ratio * 0.55,
+                        boxShadow: isActive
+                          ? `0 0 0 2px rgba(255,255,255,0.22), 0 10px 25px ${theme.glowA}`
+                          : `0 4px 16px ${theme.glowB}`,
+                      }}
                     >
-                      {node.count} students
-                    </text>
-                  </motion.g>
-                )}
-              </g>
-            );
-          })}
-        </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
+                        <span className="text-[10px] leading-tight font-semibold text-white/95 line-clamp-2">{skill.name}</span>
+                        <span className="mt-1 text-[9px] font-medium text-white/80">{skill.count}</span>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="relative px-5 pb-2">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Quick-Filter Pill Lanes</p>
+      </div>
+
+      <div className="relative px-3 sm:px-5 pb-3 space-y-2.5">
+        {(["Hot", "Strong", "Emerging"] as SkillTier[]).map((lane) => (
+          <div key={lane} className="rounded-xl border border-border/30 bg-background/25 px-2 py-2">
+            <div className="flex items-center justify-between gap-2 px-1 pb-1">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-foreground/80">{lane}</span>
+              <span className="text-[10px] text-muted-foreground">{laneMap[lane].length} skills</span>
+            </div>
+            <div className="overflow-x-auto no-scrollbar">
+              <div className="flex gap-1.5 min-w-max">
+                {laneMap[lane].map((skill) => {
+                  const selected = activeIndex === skill.index;
+                  return (
+                    <button
+                      key={`${lane}-${skill.name}`}
+                      type="button"
+                      onClick={() => setActiveIndex(skill.index)}
+                      className={`text-[10px] px-2.5 py-1 rounded-full border whitespace-nowrap transition-colors ${selected
+                        ? `text-white border-transparent`
+                        : "text-muted-foreground border-border/40 bg-background/45 hover:text-foreground"
+                        }`}
+                      style={selected ? { backgroundColor: theme.hexActive } : undefined}
+                    >
+                      {skill.name} · {skill.count}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="relative px-5 pb-4 pt-1">
