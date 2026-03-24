@@ -16,6 +16,7 @@ import Requests from "./pages/Requests";
 import Startup from "./pages/Startup";
 import StartupChat from "./pages/StartupChat";
 import IEEE from "./pages/IEEE";
+import IEEEResearchIdeas from "./pages/IEEEResearchIdeas";
 import Alumni from "./pages/Alumni";
 import BranchDetail from "./pages/BranchDetail";
 import Profile from "./pages/Profile";
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="/startup" element={<ProtectedRoute><Startup /></ProtectedRoute>} />
             <Route path="/startup/:startupId/chat" element={<ProtectedRoute><StartupChat /></ProtectedRoute>} />
             <Route path="/ieee" element={<ProtectedRoute><IEEE /></ProtectedRoute>} />
+            <Route path="/ieee/research-ideas" element={<ProtectedRoute><IEEEResearchIdeas /></ProtectedRoute>} />
             <Route path="/alumni" element={<ProtectedRoute><Alumni /></ProtectedRoute>} />
             <Route path="/branch/:branchSlug" element={<ProtectedRoute><BranchDetail /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
