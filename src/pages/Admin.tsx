@@ -50,7 +50,7 @@ const sidebarSections = [
   { label: "Core Team", icon: Shield, key: "core_team", superOnly: true },
   { label: "Form Settings", icon: Settings2, key: "form_settings", superOnly: false },
   { label: "Students", icon: Users, key: "students" },
-  { label: "Events", icon: Calendar, key: "events" },
+  { label: "Branch Carousel", icon: Calendar, key: "events" },
   { label: "Achievements", icon: Trophy, key: "achievements" },
   { label: "Announcements", icon: Megaphone, key: "announcements" },
   { label: "Hackathons", icon: Globe, key: "hackathons" },
@@ -77,7 +77,7 @@ const groupedSidebar: (SidebarItem | SidebarGroup)[] = [
   { label: "Form Settings", icon: Settings2, key: "form_settings" },
   { label: "Students", icon: Users, key: "students" },
   { label: "Branch Stars", icon: Trophy, key: "branch_featured" },
-  { label: "Events", icon: Calendar, key: "events" },
+  { label: "Branch Carousel", icon: Calendar, key: "events" },
   { label: "Achievements", icon: Trophy, key: "achievements" },
   { label: "Announcements", icon: Megaphone, key: "announcements" },
   {
@@ -843,7 +843,17 @@ const Admin = () => {
 
   const openCreate = () => {
     setEditId(null);
-    setForm({ is_active: true });
+    if (section === "events") {
+      setForm({
+        is_active: true,
+        event_type: "general",
+        icon: "sparkles",
+        gradient: "from-primary/30 to-accent/20",
+        sort_order: 0,
+      });
+    } else {
+      setForm({ is_active: true });
+    }
     setClubPresidentQuery("");
     setClubPresidentResults([]);
     setClubVicePresidentQuery("");
@@ -951,6 +961,7 @@ const Admin = () => {
   const deleteMutations: Record<Section, any> = {
     colleges: deleteCollegeMut,
     college_admins: { mutateAsync: async () => {} },
+    core_team: { mutateAsync: async () => {} },
     club_dashboard: { mutateAsync: async () => {} },
     form_settings: { mutateAsync: async () => {} },
     students: deleteStudent, events: deleteEvent,
@@ -985,7 +996,23 @@ const Admin = () => {
       } else if (section === "students") {
         await upsertStudent.mutateAsync({ ...base, name: form.name || "", email: form.email || null, branch_id: form.branch_id || null, graduation_year: form.graduation_year ? Number(form.graduation_year) : null, bio: form.bio || null, skills: form.skills ? (typeof form.skills === "string" ? form.skills.split(",").map((s: string) => s.trim()) : form.skills) : [], status: form.status || "active", is_topper: form.is_topper === "true" || form.is_topper === true, xp_points: form.xp_points ? Number(form.xp_points) : 0, social_links: { company: form.company || null, company_type: form.company_type || null } });
       } else if (section === "events") {
-        await upsertEvent.mutateAsync({ ...base, title: form.title || "", description: form.description || null, event_type: form.event_type || "general", branch_id: form.branch_id || null, date: form.date || null, location: form.location || null, status: form.status || "upcoming", is_featured: form.is_featured === "true" || form.is_featured === true });
+        await upsertEvent.mutateAsync({
+          ...base,
+          title: form.title || "",
+          description: form.description || null,
+          event_type: form.event_type || "general",
+          branch_id: form.branch_id || null,
+          date: form.date || null,
+          location: form.location || null,
+          image_url: form.image_url || null,
+          icon: form.icon || "sparkles",
+          gradient: form.gradient || "from-primary/30 to-accent/20",
+          hyperlink: form.hyperlink || null,
+          sort_order: form.sort_order ? Number(form.sort_order) : 0,
+          is_active: form.is_active === "true" || form.is_active === true,
+          status: (form.is_active === "false" || form.is_active === false) ? "cancelled" : (form.status || "upcoming"),
+          is_featured: form.is_featured === "true" || form.is_featured === true,
+        } as any);
       } else if (section === "achievements") {
         await upsertAchievement.mutateAsync({ ...base, student_id: form.student_id || "", title: form.title || "", description: form.description || null, achievement_type: form.achievement_type || "general" });
       } else if (section === "announcements") {
@@ -1228,7 +1255,14 @@ const Admin = () => {
 
   const isLoading = studentsLoading || branchesLoading || eventsLoading || achievementsLoading || announcementsLoading || hackathonsLoading || clubsLoading || alumniLoading || ieeeLoading || carouselLoading;
 
-  const sectionLabel = section === "ieee_members" ? "IEEE Member" : section === "colleges" ? "College" : section.slice(0, -1);
+  const sectionLabel =
+    section === "ieee_members"
+      ? "IEEE Member"
+      : section === "colleges"
+      ? "College"
+      : section === "events"
+      ? "Branch Carousel"
+      : section.slice(0, -1);
 
   return (
     <div className="min-h-screen bg-background flex relative overflow-hidden">
@@ -2077,9 +2111,20 @@ const Admin = () => {
               </>
             )}
             {section === "events" && (
-              <DataTable columns={["Title", "Type", "Branch", "Date", "Status"]}
+              <DataTable columns={["Title", "Branch", "Category", "Icon", "Image", "Link", "Order", "Active"]}
                 rows={(events || []).filter((e: any) => e.title.toLowerCase().includes(search.toLowerCase())).map((e: any) => ({
-                  id: e.id, cells: [e.title, e.event_type, e.branches?.name || "-", e.date ? new Date(e.date).toLocaleDateString() : "-", <StatusBadge key="s" status={e.status} />], raw: e,
+                  id: e.id,
+                  cells: [
+                    e.title,
+                    e.branches?.name || "All",
+                    e.event_type || "general",
+                    e.icon || "sparkles",
+                    e.image_url ? "🖼️ Yes" : "No",
+                    e.hyperlink ? "🔗 Yes" : "No",
+                    e.sort_order || 0,
+                    e.is_active !== false ? "✅ Yes" : "No",
+                  ],
+                  raw: e,
                 }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
             )}
             {section === "achievements" && (
@@ -2277,9 +2322,9 @@ const Admin = () => {
 
         {section === "events" && (
           <>
-            <Field label="Title"><Input className={inputClass} value={form.title || ""} onChange={(e) => setF("title", e.target.value)} /></Field>
-            <Field label="Description"><Input className={inputClass} value={form.description || ""} onChange={(e) => setF("description", e.target.value)} /></Field>
-            <Field label="Type">
+            <Field label="Title *"><Input className={inputClass} value={form.title || ""} onChange={(e) => setF("title", e.target.value)} placeholder="e.g. AI Innovation Summit" /></Field>
+            <Field label="Description"><Input className={inputClass} value={form.description || ""} onChange={(e) => setF("description", e.target.value)} placeholder="Short description..." /></Field>
+            <Field label="Category">
               <select className={selectClass} value={form.event_type || "general"} onChange={(e) => setF("event_type", e.target.value)}>
                 {["general", "hackathon", "workshop", "seminar", "fest"].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -2290,13 +2335,89 @@ const Admin = () => {
                 {displayBranches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Field>
-            <Field label="Date"><Input className={inputClass} type="datetime-local" value={form.date?.slice(0, 16) || ""} onChange={(e) => setF("date", e.target.value)} /></Field>
-            <Field label="Location"><Input className={inputClass} value={form.location || ""} onChange={(e) => setF("location", e.target.value)} /></Field>
-            <Field label="Status">
-              <select className={selectClass} value={form.status || "upcoming"} onChange={(e) => setF("status", e.target.value)}>
-                {["upcoming", "ongoing", "completed", "cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+
+            <Field label="Icon">
+              <select className={selectClass} value={form.icon || "sparkles"} onChange={(e) => setF("icon", e.target.value)}>
+                {["rocket", "trophy", "book", "lightbulb", "users", "palette", "graduation", "code", "globe", "megaphone", "zap", "star", "sparkles"].map(i => <option key={i} value={i}>{i}</option>)}
               </select>
             </Field>
+            <Field label="Gradient"><Input className={inputClass} value={form.gradient || "from-primary/30 to-accent/20"} onChange={(e) => setF("gradient", e.target.value)} placeholder="from-primary/30 to-accent/20" /></Field>
+            <Field label="Hyperlink (optional)"><Input className={inputClass} value={form.hyperlink || ""} onChange={(e) => setF("hyperlink", e.target.value)} placeholder="https://..." /></Field>
+
+            <div className="mb-4 p-4 rounded-xl border border-border/30 bg-secondary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <ImageIcon className="h-4 w-4 text-accent" />
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Media</span>
+              </div>
+
+              <Field label="Image URL">
+                <Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://... or upload below" />
+              </Field>
+
+              {form.image_url && (
+                <div className="mb-3 relative group">
+                  <img src={form.image_url} alt="Branch carousel preview" className="w-full h-32 object-cover rounded-lg border border-border/30" />
+                  <button type="button" onClick={() => setF("image_url", "")} className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X className="h-3 w-3 text-white" />
+                  </button>
+                </div>
+              )}
+
+              <label className="flex items-center justify-center gap-2 h-10 rounded-xl border border-dashed border-border/50 bg-secondary/30 cursor-pointer hover:border-accent/50 hover:bg-secondary/50 transition-all text-xs text-muted-foreground hover:text-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                <span>{form._uploading ? "Uploading..." : "Upload & Crop Image"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={form._uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setF("_cropSrc", reader.result as string);
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            {form._cropSrc && (
+              <ImageCropper
+                imageSrc={form._cropSrc}
+                aspectRatio={16 / 9}
+                circularCrop={false}
+                onCancel={() => setF("_cropSrc", null)}
+                onCropComplete={async (blob: Blob) => {
+                  setF("_cropSrc", null);
+                  setF("_uploading", true);
+                  try {
+                    const fileName = `branch-carousel-${Date.now()}.jpg`;
+                    const { error: uploadErr } = await supabase.storage
+                      .from("carousel-images")
+                      .upload(fileName, blob, { upsert: true, contentType: "image/jpeg" });
+                    if (uploadErr) throw uploadErr;
+                    const { data: urlData } = supabase.storage.from("carousel-images").getPublicUrl(fileName);
+                    setF("image_url", urlData.publicUrl);
+                  } catch (err: any) {
+                    toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+                  } finally {
+                    setF("_uploading", false);
+                  }
+                }}
+              />
+            )}
+
+            <Field label="Sort Order"><Input className={inputClass} type="number" value={form.sort_order || 0} onChange={(e) => setF("sort_order", e.target.value)} /></Field>
+            <Field label="Active?">
+              <select className={selectClass} value={String(form.is_active ?? true)} onChange={(e) => setF("is_active", e.target.value)}>
+                <option value="true">Yes</option><option value="false">No</option>
+              </select>
+            </Field>
+
+            <Field label="Date (optional)"><Input className={inputClass} type="datetime-local" value={form.date?.slice(0, 16) || ""} onChange={(e) => setF("date", e.target.value)} /></Field>
+            <Field label="Location (optional)"><Input className={inputClass} value={form.location || ""} onChange={(e) => setF("location", e.target.value)} placeholder="e.g. Auditorium" /></Field>
           </>
         )}
 
