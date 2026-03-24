@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Calendar, FileText, Users, Globe, ExternalLink, MapPin, Clock,
   BookOpen, Award, Search, Zap, ChevronRight, ChevronLeft, Cpu, Radio, Wifi, Database,
-  Shield, Star, TrendingUp, Eye, Link2
+  Shield, Star, TrendingUp, Eye, Link2, Lightbulb, ArrowUpRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -82,7 +82,7 @@ const tagColors: Record<string, string> = {
 // --- Conference Carousel ---
 const ConferenceCarousel = ({ items }: { items: typeof fallbackConferences }) => {
   const [idx, setIdx] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startTimer = () => {
     timerRef.current = setInterval(() => setIdx(p => (p + 1) % items.length), 5000);
@@ -378,6 +378,29 @@ const IEEE = () => {
                   className="pl-10 bg-secondary/50 border-border/40 h-11 focus:border-primary/40" />
               </div>
             </div>
+
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-7">
+              <Link
+                to="/ieee/research-ideas"
+                className="group block rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-accent/10 p-4 md:p-5 hover:border-primary/40 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[11px] tracking-wider uppercase text-primary font-semibold mb-1">Research Topic Assistant</p>
+                    <h3 className="font-display text-lg md:text-xl font-bold text-foreground leading-tight">
+                      Want to write a research paper but no idea on topic?
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Explore weekly trending category-wise ideas across AI/ML, Electronics, IoT, Medical, Cybersecurity, Data Science, Robotics, Quantum, Green Tech, FinTech, Tech Law, and Photonics.
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2 text-primary">
+                    <Lightbulb className="h-5 w-5" />
+                    <ArrowUpRight className="h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
 
             <h2 className="font-display text-2xl font-bold text-foreground mb-6 flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" /> Members ({filteredMembers.length})
