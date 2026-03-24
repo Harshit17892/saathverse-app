@@ -6,7 +6,7 @@ import {
   Zap, X, ChevronRight, ChevronLeft, Layers, GraduationCap, Radio,
   Globe, MapPin, Tag, Star, Building2, ArrowLeftRight,
   Settings2, Save, ToggleLeft, LinkIcon, Bot, Loader2, Rocket,
-  SlidersHorizontal, ArrowUpDown, Upload, Image as ImageIcon, Crop, Download, Gift, Flame, BarChart3, Eye, Sparkles,
+  SlidersHorizontal, ArrowUpDown, Upload, Image as ImageIcon, Crop, Download, Gift, Flame, BarChart3, Eye, Sparkles, BookOpen,
 } from "lucide-react";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import SiteAnalytics from "@/components/admin/SiteAnalytics";
@@ -33,6 +33,7 @@ import {
   useAllHackathonCarousel, useUpsertHackathonCarousel, useDeleteHackathonCarousel,
   useAllIEEECarousel, useUpsertIEEECarousel, useDeleteIEEECarousel,
   useAllIEEEConferences, useUpsertIEEEConference, useDeleteIEEEConference,
+  useAllIEEEResearchPapers, useUpsertIEEEResearchPaper, useDeleteIEEEResearchPaper,
   useColleges, useUpsertCollege, useDeleteCollege, useCollegesRealtime,
   useFormSettings, useUpsertFormSetting,
   useAllBranchFeaturedStudents, useUpsertBranchFeaturedStudent, useDeleteBranchFeaturedStudent,
@@ -42,6 +43,12 @@ import {
 import { branchesData } from "@/data/branchesData";
 import { useQueryClient } from "@tanstack/react-query";
 import { scrapeHackathonUrl, discoverHackathons } from "@/utils/hackathonScraper";
+import {
+  scrapeConferenceUrl,
+  discoverIEEEAndSpringerConferences,
+  scrapeResearchPaperUrl,
+  discoverResearchPapers,
+} from "@/utils/ieeeSearch";
 import ClubDashboardSection from "@/components/admin/ClubDashboardSection";
 
 const sidebarSections = [
@@ -61,6 +68,7 @@ const sidebarSections = [
   { label: "IEEE Members", icon: Radio, key: "ieee_members" },
   { label: "IEEE Carousel", icon: Star, key: "ieee_carousel" },
   { label: "IEEE Events", icon: Calendar, key: "ieee_conferences" },
+  { label: "IEEE Research", icon: BookOpen, key: "ieee_research_papers" },
   { label: "Carousel", icon: Star, key: "carousel_slides" },
   { label: "Startup Carousel", icon: Rocket, key: "startup_carousel" },
   { label: "Discover Carousel", icon: Sparkles, key: "discover_carousel" },
@@ -99,6 +107,7 @@ const groupedSidebar: (SidebarItem | SidebarGroup)[] = [
       { label: "Members", icon: Radio, key: "ieee_members" },
       { label: "Carousel", icon: Star, key: "ieee_carousel" },
       { label: "Events", icon: Calendar, key: "ieee_conferences" },
+      { label: "Research Papers", icon: BookOpen, key: "ieee_research_papers" },
     ]
   },
   {
@@ -189,6 +198,7 @@ const Admin = () => {
   const { data: hackCarousel = [], isLoading: hackCarouselLoading } = useAllHackathonCarousel();
   const { data: ieeeCarousel = [], isLoading: ieeeCarouselLoading } = useAllIEEECarousel();
   const { data: ieeeConferences = [], isLoading: ieeeConfLoading } = useAllIEEEConferences();
+  const { data: ieeeResearchPapers = [], isLoading: ieeePapersLoading } = useAllIEEEResearchPapers();
   const { data: branchFeatured = [], isLoading: branchFeaturedLoading } = useAllBranchFeaturedStudents();
   const { data: startupCarousel = [], isLoading: startupCarouselLoading } = useAllStartupCarousel();
   const { data: discoverCarousel = [], isLoading: discoverCarouselLoading } = useAllDiscoverCarousel();
@@ -354,6 +364,8 @@ const Admin = () => {
   const deleteIEEECarouselMut = useDeleteIEEECarousel();
   const upsertIEEEConf = useUpsertIEEEConference();
   const deleteIEEEConf = useDeleteIEEEConference();
+  const upsertIEEEResearchPaperMut = useUpsertIEEEResearchPaper();
+  const deleteIEEEResearchPaperMut = useDeleteIEEEResearchPaper();
   const upsertCollege = useUpsertCollege();
   const deleteCollegeMut = useDeleteCollege();
   const upsertBranchFeatured = useUpsertBranchFeaturedStudent();
@@ -365,6 +377,8 @@ const Admin = () => {
 
   const [form, setForm] = useState<Record<string, any>>({});
   const [discovering, setDiscovering] = useState(false);
+  const [discoveringIEEEConferences, setDiscoveringIEEEConferences] = useState(false);
+  const [discoveringResearchPapers, setDiscoveringResearchPapers] = useState(false);
   const [clubPresidentQuery, setClubPresidentQuery] = useState("");
   const [clubPresidentResults, setClubPresidentResults] = useState<any[]>([]);
   const [clubVicePresidentQuery, setClubVicePresidentQuery] = useState("");
@@ -977,6 +991,106 @@ const Admin = () => {
     }
   };
 
+  const handleDiscoverIEEEConferences = async () => {
+    setDiscoveringIEEEConferences(true);
+    try {
+      const discovered = await discoverIEEEAndSpringerConferences();
+      if (discovered.length === 0) {
+        toast({ title: "No conferences found", description: "Try again later or add manually.", variant: "destructive" });
+        return;
+      }
+
+      const existingTitles = new Set((ieeeConferences || []).map((c: any) => c.title?.toLowerCase()));
+      let inserted = 0;
+      let skipped = 0;
+
+      for (const c of discovered) {
+        if (existingTitles.has(c.title.toLowerCase())) {
+          skipped++;
+          continue;
+        }
+        const { error } = await supabase.from("ieee_conferences" as any).insert({
+          title: c.title,
+          description: c.description || null,
+          conference_type: c.conference_type || "conference",
+          date: c.date || null,
+          end_date: c.end_date || null,
+          location: c.location || null,
+          hyperlink: c.hyperlink || null,
+          sort_order: 0,
+          is_active: true,
+          college_id: activeCollegeId,
+        });
+        if (!error) inserted++;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["ieee_conferences_all"] });
+      if (inserted > 0) {
+        toast({ title: `Added ${inserted} conferences`, description: skipped > 0 ? `${skipped} duplicates skipped.` : "Auto-discovery complete." });
+      } else {
+        toast({ title: "No new conferences", description: skipped > 0 ? "All discovered conferences already exist." : "Try manual URL fetch.", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Conference discovery failed", description: e.message, variant: "destructive" });
+    } finally {
+      setDiscoveringIEEEConferences(false);
+    }
+  };
+
+  const handleDiscoverResearchPapers = async () => {
+    setDiscoveringResearchPapers(true);
+    try {
+      const discovered = await discoverResearchPapers("IEEE Springer conference paper");
+      if (discovered.length === 0) {
+        toast({ title: "No papers found", description: "Try again later or add manually.", variant: "destructive" });
+        return;
+      }
+
+      const existingKeys = new Set(
+        (ieeeResearchPapers || []).map((p: any) => `${(p.doi || "").toLowerCase()}|${(p.title || "").toLowerCase()}`)
+      );
+
+      let inserted = 0;
+      let skipped = 0;
+      for (const p of discovered) {
+        const key = `${(p.doi || "").toLowerCase()}|${(p.title || "").toLowerCase()}`;
+        if (existingKeys.has(key)) {
+          skipped++;
+          continue;
+        }
+
+        const { error } = await supabase.from("ieee_research_papers" as any).insert({
+          title: p.title,
+          abstract: p.abstract || null,
+          publication_date: p.publication_date || null,
+          authors: p.authors || null,
+          publisher: p.publisher || null,
+          doi: p.doi || null,
+          paper_url: p.paper_url || null,
+          source: p.source || "web",
+          paper_type: p.paper_type || "conference-paper",
+          citations: p.citations || 0,
+          sort_order: 0,
+          is_active: true,
+          college_id: activeCollegeId,
+        });
+
+        if (!error) inserted++;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["ieee_research_papers_all"] });
+      if (inserted > 0) {
+        toast({ title: `Added ${inserted} papers`, description: skipped > 0 ? `${skipped} duplicates skipped.` : "Auto-discovery complete." });
+      } else {
+        toast({ title: "No new papers", description: skipped > 0 ? "All discovered papers already exist." : "Try manual URL fetch.", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Paper discovery failed", description: e.message, variant: "destructive" });
+    } finally {
+      setDiscoveringResearchPapers(false);
+    }
+  };
+
   const deleteMutations: Record<Section, any> = {
     colleges: deleteCollegeMut,
     college_admins: { mutateAsync: async () => {} },
@@ -988,6 +1102,7 @@ const Admin = () => {
     hackathons: deleteHackathon, clubs: deleteClub, alumni: deleteAlumni, ieee_members: deleteIEEEMember,
     carousel_slides: deleteCarouselSlide, hackathon_carousel: deleteHackCarousel, ieee_carousel: deleteIEEECarouselMut,
     ieee_conferences: deleteIEEEConf,
+    ieee_research_papers: deleteIEEEResearchPaperMut,
     branch_featured: deleteBranchFeatured,
     startup_carousel: deleteStartupCarouselMut,
     discover_carousel: deleteDiscoverCarouselMut,
@@ -1112,6 +1227,22 @@ const Admin = () => {
         await upsertIEEECarouselMut.mutateAsync({ ...base, title: form.title || "", image_url: form.image_url || null, category: form.category || "upcoming", hyperlink: form.hyperlink || null, link_text: form.link_text || "Learn More", sort_order: form.sort_order ? Number(form.sort_order) : 0, is_active: form.is_active === "true" || form.is_active === true });
       } else if (section === "ieee_conferences") {
         await upsertIEEEConf.mutateAsync({ ...base, title: form.title || "", description: form.description || null, conference_type: form.conference_type || "conference", date: form.date || null, end_date: form.end_date || null, location: form.location || null, hyperlink: form.hyperlink || null, sort_order: form.sort_order ? Number(form.sort_order) : 0, is_active: form.is_active === "true" || form.is_active === true });
+      } else if (section === "ieee_research_papers") {
+        await upsertIEEEResearchPaperMut.mutateAsync({
+          ...base,
+          title: form.title || "",
+          abstract: form.abstract || null,
+          publication_date: form.publication_date || null,
+          authors: form.authors || null,
+          publisher: form.publisher || null,
+          doi: form.doi || null,
+          paper_url: form.paper_url || null,
+          source: form.source || "web",
+          paper_type: form.paper_type || "conference-paper",
+          citations: form.citations ? Number(form.citations) : 0,
+          sort_order: form.sort_order ? Number(form.sort_order) : 0,
+          is_active: form.is_active === "true" || form.is_active === true,
+        });
       } else if (section === "branch_featured") {
         const resolvedBranchId = resolveLegacyBranchId(form.branch_id);
         if (!resolvedBranchId || !form.student_id) { toast({ title: "Please select both a branch and a student", variant: "destructive" }); return; }
@@ -1273,11 +1404,13 @@ const Admin = () => {
     { label: "Alumni", value: alumni.length, icon: GraduationCap, change: `${alumni.filter((a: any) => a.featured).length} featured` },
   ];
 
-  const isLoading = studentsLoading || branchesLoading || eventsLoading || achievementsLoading || announcementsLoading || hackathonsLoading || clubsLoading || alumniLoading || ieeeLoading || carouselLoading;
+  const isLoading = studentsLoading || branchesLoading || eventsLoading || achievementsLoading || announcementsLoading || hackathonsLoading || clubsLoading || alumniLoading || ieeeLoading || carouselLoading || ieeeConfLoading || ieeePapersLoading;
 
   const sectionLabel =
     section === "ieee_members"
       ? "IEEE Member"
+      : section === "ieee_research_papers"
+      ? "IEEE Research Paper"
       : section === "colleges"
       ? "College"
       : section === "events"
@@ -1466,6 +1599,20 @@ const Admin = () => {
                 className="gap-2 border-primary/40 text-primary hover:bg-primary/10 rounded-xl">
                 {discovering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
                 {discovering ? "Discovering..." : "Auto-Discover"}
+              </Button>
+            )}
+            {section === "ieee_conferences" && (
+              <Button size="sm" variant="outline" onClick={handleDiscoverIEEEConferences} disabled={discoveringIEEEConferences}
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10 rounded-xl">
+                {discoveringIEEEConferences ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                {discoveringIEEEConferences ? "Searching..." : "Auto-Fill Conferences"}
+              </Button>
+            )}
+            {section === "ieee_research_papers" && (
+              <Button size="sm" variant="outline" onClick={handleDiscoverResearchPapers} disabled={discoveringResearchPapers}
+                className="gap-2 border-primary/40 text-primary hover:bg-primary/10 rounded-xl">
+                {discoveringResearchPapers ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                {discoveringResearchPapers ? "Searching..." : "Auto-Fill Papers"}
               </Button>
             )}
             {section === "students" && (
@@ -2220,6 +2367,21 @@ const Admin = () => {
                   id: s.id, cells: [s.title, s.conference_type || "-", s.date || "-", s.location || "-", s.hyperlink ? "🔗 Yes" : "No", s.is_active ? "✅ Yes" : "No"], raw: s,
                 }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
             )}
+            {section === "ieee_research_papers" && (
+              <DataTable columns={["Title", "Publisher", "Date", "DOI", "Citations", "Active"]}
+                rows={(ieeeResearchPapers || []).filter((p: any) => ((p.title || "") + (p.publisher || "") + (p.authors || "")).toLowerCase().includes(search.toLowerCase())).map((p: any) => ({
+                  id: p.id,
+                  cells: [
+                    p.title,
+                    p.publisher || "-",
+                    p.publication_date || "-",
+                    p.doi || "-",
+                    p.citations || 0,
+                    p.is_active ? "✅ Yes" : "No",
+                  ],
+                  raw: p,
+                }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
+            )}
             {section === "branch_featured" && (
               <DataTable columns={["Student", "Branch", "Achievement", "Order"]}
                 rows={(branchFeatured || []).filter((s: any) => ((s.students?.name || "") + (s.branches?.name || "")).toLowerCase().includes(search.toLowerCase())).map((s: any) => ({
@@ -2958,6 +3120,50 @@ const Admin = () => {
 
         {section === "ieee_conferences" && (
           <>
+            {!editId && (
+              <div className="mb-6 p-4 rounded-xl border border-accent/30 bg-accent/5">
+                <label className="text-xs font-semibold text-accent mb-2 flex items-center gap-1.5">
+                  <LinkIcon className="h-3.5 w-3.5" /> Paste conference URL to auto-fill
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    className={inputClass + " flex-1"}
+                    placeholder="https://ieeexplore.ieee.org/... or springer.com/..."
+                    value={form._scrapeUrl || ""}
+                    onChange={(e) => setF("_scrapeUrl", e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!form._scrapeUrl || form._scraping}
+                    className="border-accent/40 text-accent hover:bg-accent/10"
+                    onClick={async () => {
+                      setF("_scraping", true);
+                      try {
+                        const d = await scrapeConferenceUrl(form._scrapeUrl);
+                        setForm(prev => ({
+                          ...prev,
+                          title: d.title || prev.title || "",
+                          description: d.description || prev.description || "",
+                          conference_type: d.conference_type || prev.conference_type || "conference",
+                          date: d.date || prev.date || "",
+                          end_date: d.end_date || prev.end_date || "",
+                          location: d.location || prev.location || "",
+                          hyperlink: d.hyperlink || prev.hyperlink || form._scrapeUrl || "",
+                          _scraping: false,
+                        }));
+                        toast({ title: "Auto-filled conference", description: d.title || "Conference details fetched." });
+                      } catch (e: any) {
+                        toast({ title: "Fetch failed", description: e.message || "Could not extract conference details.", variant: "destructive" });
+                        setF("_scraping", false);
+                      }
+                    }}
+                  >
+                    {form._scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fetch"}
+                  </Button>
+                </div>
+              </div>
+            )}
             <Field label="Title *"><Input className={inputClass} value={form.title || ""} onChange={(e) => setF("title", e.target.value)} placeholder="e.g. IEEE Conference on AI" /></Field>
             <Field label="Description"><Input className={inputClass} value={form.description || ""} onChange={(e) => setF("description", e.target.value)} /></Field>
             <Field label="Type">
@@ -2969,6 +3175,78 @@ const Admin = () => {
             <Field label="End Date (optional)"><Input className={inputClass} value={form.end_date || ""} onChange={(e) => setF("end_date", e.target.value)} /></Field>
             <Field label="Location"><Input className={inputClass} value={form.location || ""} onChange={(e) => setF("location", e.target.value)} placeholder="e.g. New Delhi" /></Field>
             <Field label="Hyperlink"><Input className={inputClass} value={form.hyperlink || ""} onChange={(e) => setF("hyperlink", e.target.value)} placeholder="https://..." /></Field>
+            <Field label="Sort Order"><Input className={inputClass} type="number" value={form.sort_order || 0} onChange={(e) => setF("sort_order", e.target.value)} /></Field>
+            <Field label="Active?">
+              <select className={selectClass} value={String(form.is_active ?? true)} onChange={(e) => setF("is_active", e.target.value)}>
+                <option value="true">Yes</option><option value="false">No</option>
+              </select>
+            </Field>
+          </>
+        )}
+
+        {section === "ieee_research_papers" && (
+          <>
+            {!editId && (
+              <div className="mb-6 p-4 rounded-xl border border-accent/30 bg-accent/5">
+                <label className="text-xs font-semibold text-accent mb-2 flex items-center gap-1.5">
+                  <LinkIcon className="h-3.5 w-3.5" /> Paste paper URL to auto-fill
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    className={inputClass + " flex-1"}
+                    placeholder="https://ieeexplore.ieee.org/... or link.springer.com/..."
+                    value={form._scrapeUrl || ""}
+                    onChange={(e) => setF("_scrapeUrl", e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!form._scrapeUrl || form._scraping}
+                    className="border-accent/40 text-accent hover:bg-accent/10"
+                    onClick={async () => {
+                      setF("_scraping", true);
+                      try {
+                        const d = await scrapeResearchPaperUrl(form._scrapeUrl);
+                        setForm(prev => ({
+                          ...prev,
+                          title: d.title || prev.title || "",
+                          abstract: d.abstract || prev.abstract || "",
+                          publication_date: d.publication_date || prev.publication_date || "",
+                          authors: d.authors || prev.authors || "",
+                          publisher: d.publisher || prev.publisher || "",
+                          doi: d.doi || prev.doi || "",
+                          paper_url: d.paper_url || prev.paper_url || form._scrapeUrl || "",
+                          source: d.source || prev.source || "web",
+                          paper_type: d.paper_type || prev.paper_type || "conference-paper",
+                          _scraping: false,
+                        }));
+                        toast({ title: "Auto-filled paper", description: d.title || "Paper metadata fetched." });
+                      } catch (e: any) {
+                        toast({ title: "Fetch failed", description: e.message || "Could not extract paper metadata.", variant: "destructive" });
+                        setF("_scraping", false);
+                      }
+                    }}
+                  >
+                    {form._scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fetch"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <Field label="Title *"><Input className={inputClass} value={form.title || ""} onChange={(e) => setF("title", e.target.value)} placeholder="Paper title" /></Field>
+            <Field label="Abstract"><Input className={inputClass} value={form.abstract || ""} onChange={(e) => setF("abstract", e.target.value)} placeholder="Short abstract" /></Field>
+            <Field label="Authors"><Input className={inputClass} value={form.authors || ""} onChange={(e) => setF("authors", e.target.value)} placeholder="Author 1, Author 2" /></Field>
+            <Field label="Publisher"><Input className={inputClass} value={form.publisher || ""} onChange={(e) => setF("publisher", e.target.value)} placeholder="IEEE / Springer" /></Field>
+            <Field label="Publication Date"><Input className={inputClass} value={form.publication_date || ""} onChange={(e) => setF("publication_date", e.target.value)} placeholder="YYYY-MM-DD" /></Field>
+            <Field label="DOI"><Input className={inputClass} value={form.doi || ""} onChange={(e) => setF("doi", e.target.value)} placeholder="10.xxxx/xxxx" /></Field>
+            <Field label="Paper URL"><Input className={inputClass} value={form.paper_url || ""} onChange={(e) => setF("paper_url", e.target.value)} placeholder="https://..." /></Field>
+            <Field label="Source">
+              <select className={selectClass} value={form.source || "web"} onChange={(e) => setF("source", e.target.value)}>
+                {["ieee", "springer", "crossref", "openalex", "web"].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+            <Field label="Paper Type"><Input className={inputClass} value={form.paper_type || "conference-paper"} onChange={(e) => setF("paper_type", e.target.value)} placeholder="conference-paper / survey / review" /></Field>
+            <Field label="Citations"><Input className={inputClass} type="number" value={form.citations || 0} onChange={(e) => setF("citations", e.target.value)} /></Field>
             <Field label="Sort Order"><Input className={inputClass} type="number" value={form.sort_order || 0} onChange={(e) => setF("sort_order", e.target.value)} /></Field>
             <Field label="Active?">
               <select className={selectClass} value={String(form.is_active ?? true)} onChange={(e) => setF("is_active", e.target.value)}>
