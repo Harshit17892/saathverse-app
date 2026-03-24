@@ -166,6 +166,7 @@ export const useEvents = () => {
         .from("events")
         .select("*, branches(name)")
         .eq("college_id", collegeId!)
+        .order("sort_order", { ascending: true })
         .order("date", { ascending: false });
       if (error) throw error;
       return data;
