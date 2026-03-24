@@ -386,6 +386,7 @@ const Admin = () => {
 
       const userIds = (roles || []).map((r: any) => r.user_id);
       let profilesMap: Record<string, any> = {};
+      let studentsMap: Record<string, any> = {};
       if (userIds.length > 0) {
         const { data: profiles, error: pErr } = await supabase
           .from("profiles")
@@ -393,10 +394,27 @@ const Admin = () => {
           .in("user_id", userIds);
         if (pErr) throw pErr;
         (profiles || []).forEach((p: any) => { profilesMap[p.user_id] = p; });
+
+        const { data: students, error: sErr } = await supabase
+          .from("students")
+          .select("id, name, email, avatar_url, branch_name, main_branch:main_branch_id(name), specialization:specialization_id(name)")
+          .eq("college_id", activeCollegeId)
+          .in("id", userIds);
+        if (sErr) throw sErr;
+        (students || []).forEach((s: any) => { studentsMap[s.id] = s; });
       }
       const enriched = (roles || []).map((r: any) => ({
         ...r,
         profile: profilesMap[r.user_id] || null,
+        student: studentsMap[r.user_id] || null,
+        display_name: profilesMap[r.user_id]?.full_name || studentsMap[r.user_id]?.name || "Unknown User",
+        display_branch:
+          profilesMap[r.user_id]?.branch ||
+          studentsMap[r.user_id]?.specialization?.name ||
+          studentsMap[r.user_id]?.main_branch?.name ||
+          studentsMap[r.user_id]?.branch_name ||
+          null,
+        display_avatar: profilesMap[r.user_id]?.photo_url || studentsMap[r.user_id]?.avatar_url || null,
       }));
       setCoreTeamMembers(enriched);
     } catch (e: any) {
@@ -1800,16 +1818,17 @@ const Admin = () => {
                       <motion.div key={m.id} whileHover={{ x: 3 }}
                         className="flex items-center justify-between p-3 rounded-xl border border-border/30 bg-secondary/20 hover:bg-secondary/40 transition-colors">
                         <div className="flex items-center gap-3">
-                          {m.profile?.photo_url ? (
-                            <img src={m.profile.photo_url} alt={m.profile?.full_name || "User"} className="h-9 w-9 rounded-full object-cover border border-border/30" />
+                          {m.display_avatar ? (
+                            <img src={m.display_avatar} alt={m.display_name || "User"} className="h-9 w-9 rounded-full object-cover border border-border/30" />
                           ) : (
                             <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-accent-foreground bg-gradient-to-br from-accent to-primary">
-                              {(m.profile?.full_name || "C").charAt(0).toUpperCase()}
+                              {(m.display_name || "C").charAt(0).toUpperCase()}
                             </div>
                           )}
                           <div>
-                            <p className="text-sm font-medium text-foreground">{m.profile?.full_name || "Unknown User"}</p>
-                            {m.profile?.branch && <p className="text-[11px] text-muted-foreground">{m.profile.branch}</p>}
+                            <p className="text-sm font-medium text-foreground">{m.display_name || "Unknown User"}</p>
+                            {m.display_branch && <p className="text-[11px] text-muted-foreground">{m.display_branch}</p>}
+                            <p className="text-[10px] text-muted-foreground/80">ID: {m.user_id}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
