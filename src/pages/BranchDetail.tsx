@@ -68,7 +68,16 @@ const tagColors: Record<string, string> = {
   fest: "bg-pink-500/20 text-pink-400 border-pink-500/30",
 };
 
-type BranchEvent = { title: string; tag: string; desc: string; date: string };
+type BranchEvent = {
+  title: string;
+  tag: string;
+  desc: string;
+  date: string;
+  image_url?: string | null;
+  hyperlink?: string | null;
+  icon?: string | null;
+  gradient?: string | null;
+};
 
 // ─── Events Carousel ───
 const EventsCarousel = ({ gradient, events }: { gradient: string; events: BranchEvent[] }) => {
@@ -94,45 +103,84 @@ const EventsCarousel = ({ gradient, events }: { gradient: string; events: Branch
     );
   }
 
+  const current = events[idx];
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/30 glass">
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-[0.07]`} />
-      <div className="relative p-1">
-        <AnimatePresence mode="wait">
-          <motion.div key={idx} initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -60 }} transition={{ duration: 0.4 }}
-            className="flex items-center gap-6 p-6 md:p-8">
-            <div className="hidden md:flex shrink-0" style={{ perspective: "600px" }}>
-              <motion.div animate={{ rotateY: [0, 15, 0, -15, 0] }} transition={{ duration: 6, repeat: Infinity }}
-                className={`w-28 h-28 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg`}
-                style={{ transformStyle: "preserve-3d" }}>
-                <div className="w-16 h-16 rounded-xl bg-background/20 backdrop-blur flex items-center justify-center border border-border/20">
-                  <Sparkles className="w-8 h-8 text-foreground" />
-                </div>
-              </motion.div>
+    <div className="relative overflow-hidden rounded-2xl border border-border/30" style={{ perspective: "1200px" }}>
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-accent/5 pointer-events-none z-10 rounded-2xl" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent" />
+
+      <AnimatePresence mode="wait">
+        <motion.a
+          key={idx}
+          initial={{ opacity: 0, rotateY: 8, scale: 0.96 }}
+          animate={{ opacity: 1, rotateY: 0, scale: 1 }}
+          exit={{ opacity: 0, rotateY: -8, scale: 0.96 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          href={current.hyperlink || "#"}
+          target={current.hyperlink ? "_blank" : undefined}
+          rel="noopener noreferrer"
+          className="relative block group"
+          style={{ transformStyle: "preserve-3d" }}
+        >
+          <div className="relative h-[220px] md:h-[280px] overflow-hidden rounded-2xl">
+            {current.image_url ? (
+              <img
+                src={current.image_url}
+                alt={current.title}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+            ) : (
+              <div className={`w-full h-full bg-gradient-to-br ${current.gradient || gradient}`} />
+            )}
+
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+
+            <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8">
+              <div className="flex items-center gap-3 mb-3">
+                <span className={`text-[10px] px-3 py-1 rounded-full border font-semibold uppercase tracking-wider ${tagColors[current.tag] || tagColors.EVENT}`}>
+                  {current.tag || "general"}
+                </span>
+                {current.hyperlink && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ExternalLink className="h-3 w-3" /> Learn More
+                  </span>
+                )}
+              </div>
+
+              <h3 className="font-display text-2xl md:text-3xl font-bold text-foreground group-hover:text-primary transition-colors">
+                {current.title}
+              </h3>
+              {current.desc && <p className="text-muted-foreground text-sm mt-2 line-clamp-2">{current.desc}</p>}
+              <span className="text-xs text-accent font-medium mt-2">{current.date}</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <span className={`inline-block text-[10px] font-bold tracking-widest px-2.5 py-1 rounded-full border mb-3 ${tagColors[events[idx].tag] || tagColors.EVENT}`}>
-                {events[idx].tag.toUpperCase()}
-              </span>
-              <h3 className="font-display text-xl md:text-2xl font-bold text-foreground mb-1">{events[idx].title}</h3>
-              <p className="text-muted-foreground text-sm mb-2">{events[idx].desc}</p>
-              <span className="text-xs text-accent font-medium">{events[idx].date}</span>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-        <button onClick={() => go(-1)} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full glass flex items-center justify-center text-foreground/60 hover:text-foreground hover:bg-muted/60 transition-colors">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button onClick={() => go(1)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full glass flex items-center justify-center text-foreground/60 hover:text-foreground hover:bg-muted/60 transition-colors">
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="flex justify-center gap-1.5 pb-4">
-        {events.map((_, i) => (
-          <button key={i} onClick={() => { if (timerRef.current) clearInterval(timerRef.current); setIdx(i); startTimer(); }}
-            className={`h-1.5 rounded-full transition-all duration-300 ${i === idx ? "w-6 bg-accent" : "w-1.5 bg-muted-foreground/30"}`} />
-        ))}
-      </div>
+          </div>
+        </motion.a>
+      </AnimatePresence>
+
+      {events.length > 1 && (
+        <>
+          <button onClick={() => go(-1)} className="absolute left-3 top-1/2 -translate-y-1/2 z-20 h-9 w-9 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button onClick={() => go(1)} className="absolute right-3 top-1/2 -translate-y-1/2 z-20 h-9 w-9 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors">
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
+
+      {events.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+          {events.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { if (timerRef.current) clearInterval(timerRef.current); setIdx(i); startTimer(); }}
+              className={`h-1.5 rounded-full transition-all ${i === idx ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -545,11 +593,19 @@ const BranchDetail = () => {
           .eq("branch_id", eventBranchId)
           .order("date", { ascending: true });
         if (eventsData) {
-          setBranchEvents(eventsData.map((e: any) => ({
+          const normalized = [...eventsData]
+            .filter((e: any) => e.is_active !== false)
+            .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+
+          setBranchEvents(normalized.map((e: any) => ({
             title: e.title,
             tag: e.event_type || "general",
             desc: e.description || "",
             date: e.date ? new Date(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBA",
+            image_url: e.image_url || null,
+            hyperlink: e.hyperlink || null,
+            icon: e.icon || null,
+            gradient: e.gradient || null,
           })));
         }
       }
