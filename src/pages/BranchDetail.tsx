@@ -728,7 +728,7 @@ const BranchDetail = () => {
                 <SkillGalaxy />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                <LivePulse />
+                <LivePulse branchSlug={normalizedBranchSlug} branchLabel={meta.label} />
               </motion.div>
             </div>
           </div>
