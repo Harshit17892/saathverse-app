@@ -10,6 +10,7 @@ interface ImageCropperProps {
   onCropComplete: (croppedBlob: Blob) => void;
   onCancel: () => void;
   aspectRatio?: number;
+  circularCrop?: boolean;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number) {
@@ -47,7 +48,7 @@ async function getCroppedImg(image: HTMLImageElement, crop: PixelCrop): Promise<
   });
 }
 
-export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspectRatio = 1 }: ImageCropperProps) {
+export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspectRatio = 1, circularCrop = true }: ImageCropperProps) {
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [scale, setScale] = useState(1);
@@ -94,7 +95,7 @@ export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspec
               onChange={(_, pc) => setCrop(pc)}
               onComplete={(c) => setCompletedCrop(c)}
               aspect={aspectRatio}
-              circularCrop
+              circularCrop={circularCrop}
               className="max-h-[50vh]"
             >
               <img
