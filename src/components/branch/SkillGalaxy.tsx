@@ -10,8 +10,8 @@ interface SkillNode {
   size: number;
 }
 
-const generateSkillNodes = (): SkillNode[] => {
-  const skills = [
+const branchSkillMap: Record<string, Array<{ name: string; count: number }>> = {
+  "engineering-technology": [
     { name: "React", count: 42 },
     { name: "Python", count: 38 },
     { name: "Java", count: 35 },
@@ -26,7 +26,77 @@ const generateSkillNodes = (): SkillNode[] => {
     { name: "SQL", count: 24 },
     { name: "Rust", count: 12 },
     { name: "K8s", count: 10 },
-  ];
+  ],
+  medical: [
+    { name: "Anatomy", count: 40 },
+    { name: "Physiology", count: 36 },
+    { name: "Pathology", count: 33 },
+    { name: "Pharmacology", count: 28 },
+    { name: "Diagnostics", count: 27 },
+    { name: "Biostats", count: 21 },
+    { name: "Clinical Skills", count: 24 },
+    { name: "Case Review", count: 23 },
+    { name: "Public Health", count: 20 },
+    { name: "Bioethics", count: 18 },
+    { name: "Research", count: 16 },
+    { name: "Patient Comm", count: 26 },
+    { name: "Emergency Care", count: 14 },
+    { name: "Radiology", count: 12 },
+  ],
+  science: [
+    { name: "Physics", count: 34 },
+    { name: "Chemistry", count: 32 },
+    { name: "Mathematics", count: 36 },
+    { name: "Biology", count: 30 },
+    { name: "Lab Work", count: 24 },
+    { name: "Data Analysis", count: 22 },
+    { name: "Scientific Writing", count: 18 },
+    { name: "Experiment Design", count: 20 },
+    { name: "Statistics", count: 23 },
+    { name: "Simulation", count: 16 },
+    { name: "Instrumentation", count: 15 },
+    { name: "Computing", count: 19 },
+    { name: "Research", count: 21 },
+    { name: "Presentation", count: 14 },
+  ],
+  commerce: [
+    { name: "Accounting", count: 38 },
+    { name: "Finance", count: 35 },
+    { name: "Economics", count: 33 },
+    { name: "Taxation", count: 30 },
+    { name: "Auditing", count: 27 },
+    { name: "Business Law", count: 24 },
+    { name: "MS Excel", count: 28 },
+    { name: "Power BI", count: 20 },
+    { name: "Analytics", count: 19 },
+    { name: "Corporate Comm", count: 18 },
+    { name: "Budgeting", count: 17 },
+    { name: "Compliance", count: 16 },
+    { name: "Banking", count: 22 },
+    { name: "Tally", count: 14 },
+  ],
+};
+
+const defaultSkills = [
+  { name: "Communication", count: 28 },
+  { name: "Leadership", count: 24 },
+  { name: "Problem Solving", count: 30 },
+  { name: "Research", count: 22 },
+  { name: "Teamwork", count: 26 },
+  { name: "Presentation", count: 20 },
+  { name: "Critical Thinking", count: 25 },
+  { name: "Networking", count: 18 },
+  { name: "Planning", count: 17 },
+  { name: "Creativity", count: 21 },
+  { name: "Writing", count: 16 },
+  { name: "Interview Prep", count: 15 },
+  { name: "Portfolio", count: 14 },
+  { name: "Mentorship", count: 13 },
+];
+
+const generateSkillNodes = (branchSlug?: string): SkillNode[] => {
+  const normalized = (branchSlug || "").replace(/-[a-f0-9]{8}$/i, "");
+  const skills = branchSkillMap[normalized] || defaultSkills;
 
   const maxCount = Math.max(...skills.map(s => s.count));
   const positions = [
@@ -50,9 +120,9 @@ const connections: [number, number][] = [
   [9, 13], [10, 7], [11, 2], [12, 13],
 ];
 
-const SkillGalaxy = () => {
+const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
   const [activeNode, setActiveNode] = useState<number | null>(null);
-  const nodes = generateSkillNodes();
+  const nodes = generateSkillNodes(branchSlug);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/30 glass">
