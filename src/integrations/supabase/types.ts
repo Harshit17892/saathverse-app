@@ -815,10 +815,15 @@ export type Database = {
           description: string | null
           end_date: string | null
           event_type: string | null
+          gradient: string | null
+          hyperlink: string | null
           id: string
+          icon: string | null
           image_url: string | null
+          is_active: boolean | null
           is_featured: boolean | null
           location: string | null
+          sort_order: number | null
           status: string | null
           title: string
           updated_at: string
@@ -832,10 +837,15 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           event_type?: string | null
+          gradient?: string | null
+          hyperlink?: string | null
           id?: string
+          icon?: string | null
           image_url?: string | null
+          is_active?: boolean | null
           is_featured?: boolean | null
           location?: string | null
+          sort_order?: number | null
           status?: string | null
           title: string
           updated_at?: string
@@ -849,10 +859,15 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           event_type?: string | null
+          gradient?: string | null
+          hyperlink?: string | null
           id?: string
+          icon?: string | null
           image_url?: string | null
+          is_active?: boolean | null
           is_featured?: boolean | null
           location?: string | null
+          sort_order?: number | null
           status?: string | null
           title?: string
           updated_at?: string
@@ -2060,7 +2075,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user" | "college_admin"
+      app_role: "admin" | "moderator" | "user" | "college_admin" | "core_team"
       join_request_status: "pending" | "approved" | "rejected"
       payment_mode: "online" | "at_venue" | "free"
     }
