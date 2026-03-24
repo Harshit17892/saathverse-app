@@ -2727,7 +2727,62 @@ const Admin = () => {
                 {["upcoming", "must-do", "featured", "trending", "new"].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Image URL"><Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://..." /></Field>
+            <Field label="Image URL"><Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://... or upload below" /></Field>
+
+            {form.image_url && (
+              <div className="mb-3 relative group">
+                <img src={form.image_url} alt="IEEE carousel preview" className="w-full h-32 object-cover rounded-lg border border-border/30" />
+                <button type="button" onClick={() => setF("image_url", "")} className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X className="h-3 w-3 text-white" />
+                </button>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="flex items-center justify-center gap-2 h-10 rounded-xl border border-dashed border-border/50 bg-secondary/30 cursor-pointer hover:border-accent/50 hover:bg-secondary/50 transition-all text-xs text-muted-foreground hover:text-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                <span>{form._uploading ? "Uploading..." : "Upload & Crop Image"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={form._uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setF("_cropSrc", reader.result as string);
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            {form._cropSrc && (
+              <ImageCropper
+                imageSrc={form._cropSrc}
+                aspectRatio={16 / 9}
+                onCancel={() => setF("_cropSrc", null)}
+                onCropComplete={async (blob: Blob) => {
+                  setF("_cropSrc", null);
+                  setF("_uploading", true);
+                  try {
+                    const fileName = `carousel-${Date.now()}.jpg`;
+                    const { error: uploadErr } = await supabase.storage
+                      .from("carousel-images")
+                      .upload(fileName, blob, { upsert: true, contentType: "image/jpeg" });
+                    if (uploadErr) throw uploadErr;
+                    const { data: urlData } = supabase.storage.from("carousel-images").getPublicUrl(fileName);
+                    setF("image_url", urlData.publicUrl);
+                  } catch (err: any) {
+                    toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+                  } finally {
+                    setF("_uploading", false);
+                  }
+                }}
+              />
+            )}
             <Field label="Hyperlink"><Input className={inputClass} value={form.hyperlink || ""} onChange={(e) => setF("hyperlink", e.target.value)} placeholder="https://..." /></Field>
             <Field label="Link Text"><Input className={inputClass} value={form.link_text || "Learn More"} onChange={(e) => setF("link_text", e.target.value)} placeholder="e.g. Read More" /></Field>
             <Field label="Sort Order"><Input className={inputClass} type="number" value={form.sort_order || 0} onChange={(e) => setF("sort_order", e.target.value)} /></Field>
@@ -2800,7 +2855,62 @@ const Admin = () => {
                 {["featured", "challenge", "event", "announcement", "trending"].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Image URL"><Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://..." /></Field>
+            <Field label="Image URL"><Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://... or upload below" /></Field>
+
+            {form.image_url && (
+              <div className="mb-3 relative group">
+                <img src={form.image_url} alt="Startup carousel preview" className="w-full h-32 object-cover rounded-lg border border-border/30" />
+                <button type="button" onClick={() => setF("image_url", "")} className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X className="h-3 w-3 text-white" />
+                </button>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="flex items-center justify-center gap-2 h-10 rounded-xl border border-dashed border-border/50 bg-secondary/30 cursor-pointer hover:border-accent/50 hover:bg-secondary/50 transition-all text-xs text-muted-foreground hover:text-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                <span>{form._uploading ? "Uploading..." : "Upload & Crop Image"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={form._uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setF("_cropSrc", reader.result as string);
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            {form._cropSrc && (
+              <ImageCropper
+                imageSrc={form._cropSrc}
+                aspectRatio={16 / 9}
+                onCancel={() => setF("_cropSrc", null)}
+                onCropComplete={async (blob: Blob) => {
+                  setF("_cropSrc", null);
+                  setF("_uploading", true);
+                  try {
+                    const fileName = `carousel-${Date.now()}.jpg`;
+                    const { error: uploadErr } = await supabase.storage
+                      .from("carousel-images")
+                      .upload(fileName, blob, { upsert: true, contentType: "image/jpeg" });
+                    if (uploadErr) throw uploadErr;
+                    const { data: urlData } = supabase.storage.from("carousel-images").getPublicUrl(fileName);
+                    setF("image_url", urlData.publicUrl);
+                  } catch (err: any) {
+                    toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+                  } finally {
+                    setF("_uploading", false);
+                  }
+                }}
+              />
+            )}
             <Field label="Hyperlink"><Input className={inputClass} value={form.hyperlink || ""} onChange={(e) => setF("hyperlink", e.target.value)} placeholder="https://..." /></Field>
             <Field label="Link Text"><Input className={inputClass} value={form.link_text || "Learn More"} onChange={(e) => setF("link_text", e.target.value)} /></Field>
             <Field label="Sort Order"><Input className={inputClass} type="number" value={form.sort_order || 0} onChange={(e) => setF("sort_order", e.target.value)} /></Field>
@@ -2820,7 +2930,62 @@ const Admin = () => {
                 {["promotion", "featured", "event", "announcement", "trending", "new", "offer", "sponsor"].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Image URL"><Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://..." /></Field>
+            <Field label="Image URL"><Input className={inputClass} value={form.image_url || ""} onChange={(e) => setF("image_url", e.target.value)} placeholder="https://... or upload below" /></Field>
+
+            {form.image_url && (
+              <div className="mb-3 relative group">
+                <img src={form.image_url} alt="Discover carousel preview" className="w-full h-32 object-cover rounded-lg border border-border/30" />
+                <button type="button" onClick={() => setF("image_url", "")} className="absolute top-2 right-2 h-6 w-6 rounded-full bg-destructive/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X className="h-3 w-3 text-white" />
+                </button>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="flex items-center justify-center gap-2 h-10 rounded-xl border border-dashed border-border/50 bg-secondary/30 cursor-pointer hover:border-accent/50 hover:bg-secondary/50 transition-all text-xs text-muted-foreground hover:text-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                <span>{form._uploading ? "Uploading..." : "Upload & Crop Image"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={form._uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setF("_cropSrc", reader.result as string);
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
+            {form._cropSrc && (
+              <ImageCropper
+                imageSrc={form._cropSrc}
+                aspectRatio={16 / 9}
+                onCancel={() => setF("_cropSrc", null)}
+                onCropComplete={async (blob: Blob) => {
+                  setF("_cropSrc", null);
+                  setF("_uploading", true);
+                  try {
+                    const fileName = `carousel-${Date.now()}.jpg`;
+                    const { error: uploadErr } = await supabase.storage
+                      .from("carousel-images")
+                      .upload(fileName, blob, { upsert: true, contentType: "image/jpeg" });
+                    if (uploadErr) throw uploadErr;
+                    const { data: urlData } = supabase.storage.from("carousel-images").getPublicUrl(fileName);
+                    setF("image_url", urlData.publicUrl);
+                  } catch (err: any) {
+                    toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+                  } finally {
+                    setF("_uploading", false);
+                  }
+                }}
+              />
+            )}
             <Field label="Gradient (if no image)"><Input className={inputClass} value={form.gradient || ""} onChange={(e) => setF("gradient", e.target.value)} placeholder="from-primary/30 to-accent/20" /></Field>
             <Field label="Hyperlink"><Input className={inputClass} value={form.hyperlink || ""} onChange={(e) => setF("hyperlink", e.target.value)} placeholder="https://..." /></Field>
             <Field label="Link Text"><Input className={inputClass} value={form.link_text || "Learn More"} onChange={(e) => setF("link_text", e.target.value)} /></Field>
