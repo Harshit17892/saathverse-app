@@ -1,6 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Briefcase, CalendarClock, ChevronLeft, ChevronRight, Flag, Plus, Rocket, ShieldCheck, Users, WandSparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 type Opportunity = {
   id: string;
@@ -23,44 +26,6 @@ type MatchRequest = {
   postedAt: string;
 };
 
-const branchData: Record<string, { opportunities: Opportunity[]; requests: MatchRequest[] }> = {
-  "engineering-technology": {
-    opportunities: [
-      { id: "op-eng-1", title: "Frontend Internship Sprint", type: "internship", deadline: "Apr 05", mode: "Remote", ctaLabel: "Apply", link: "#", tags: ["React", "UI"] },
-      { id: "op-eng-2", title: "National AI Challenge 2026", type: "competition", deadline: "Apr 12", mode: "Hybrid", ctaLabel: "Register", link: "#", tags: ["AI", "Team"] },
-      { id: "op-eng-3", title: "Web3 Buildathon", type: "hackathon", deadline: "Apr 20", mode: "On-site", ctaLabel: "Join", link: "#", tags: ["Solidity", "Pitch"] },
-      { id: "op-eng-4", title: "Cloud Foundations Scholarship", type: "scholarship", deadline: "Apr 28", mode: "Remote", ctaLabel: "Apply", link: "#", tags: ["Cloud", "Certificate"] },
-    ],
-    requests: [
-      { id: "rq-eng-1", title: "Need UI teammate for hackathon MVP", needed: "Figma + Tailwind", urgency: "High", scope: "This branch", postedBy: "Aarav", postedAt: "2m ago" },
-      { id: "rq-eng-2", title: "Looking for ML partner for healthcare model", needed: "Python + Sklearn", urgency: "Medium", scope: "All branches", postedBy: "Priyanshi", postedAt: "8m ago" },
-      { id: "rq-eng-3", title: "Open bounty: mobile app test automation", needed: "Appium / Detox", urgency: "Low", scope: "This branch", postedBy: "Club Tech Team", postedAt: "14m ago" },
-    ],
-  },
-  medical: {
-    opportunities: [
-      { id: "op-med-1", title: "Clinical Research Internship", type: "internship", deadline: "Apr 09", mode: "On-site", ctaLabel: "Apply", link: "#", tags: ["Clinical", "Research"] },
-      { id: "op-med-2", title: "Public Health Innovation Grant", type: "scholarship", deadline: "Apr 16", mode: "Hybrid", ctaLabel: "Apply", link: "#", tags: ["Grant", "Public Health"] },
-      { id: "op-med-3", title: "Bioinformatics Mini Hackathon", type: "hackathon", deadline: "Apr 24", mode: "Remote", ctaLabel: "Join", link: "#", tags: ["Genomics", "Data"] },
-    ],
-    requests: [
-      { id: "rq-med-1", title: "Need teammate for case presentation", needed: "Diagnostics + PPT", urgency: "High", scope: "This branch", postedBy: "Mehak", postedAt: "3m ago" },
-      { id: "rq-med-2", title: "Looking for mentor: USMLE planning", needed: "Roadmap guidance", urgency: "Medium", scope: "All branches", postedBy: "Rudra", postedAt: "11m ago" },
-    ],
-  },
-  default: {
-    opportunities: [
-      { id: "op-def-1", title: "Campus Innovation Fellowship", type: "internship", deadline: "Apr 08", mode: "Hybrid", ctaLabel: "Apply", link: "#", tags: ["Innovation", "Mentorship"] },
-      { id: "op-def-2", title: "Inter-College Mega Challenge", type: "competition", deadline: "Apr 15", mode: "On-site", ctaLabel: "Register", link: "#", tags: ["Team", "Prize"] },
-      { id: "op-def-3", title: "Student Builder Scholarship", type: "scholarship", deadline: "Apr 30", mode: "Remote", ctaLabel: "Apply", link: "#", tags: ["Scholarship", "Merit"] },
-    ],
-    requests: [
-      { id: "rq-def-1", title: "Looking for teammate for branch project", needed: "Research + Execution", urgency: "Medium", scope: "This branch", postedBy: "Student", postedAt: "4m ago" },
-      { id: "rq-def-2", title: "Open bounty: content + design support", needed: "Canva / Docs", urgency: "Low", scope: "All branches", postedBy: "Community Team", postedAt: "16m ago" },
-    ],
-  },
-};
-
 const typePill: Record<Opportunity["type"], string> = {
   internship: "bg-cyan-500/15 text-cyan-300 border-cyan-400/30",
   competition: "bg-violet-500/15 text-violet-300 border-violet-400/30",
@@ -75,20 +40,174 @@ const urgencyPill: Record<MatchRequest["urgency"], string> = {
   High: "text-rose-300 border-rose-400/30 bg-rose-500/10",
 };
 
+const allowedTypes: Opportunity["type"][] = ["internship", "competition", "scholarship", "hackathon", "event"];
+const allowedModes: Opportunity["mode"][] = ["Remote", "Hybrid", "On-site"];
+const allowedUrgency: MatchRequest["urgency"][] = ["Low", "Medium", "High"];
+
+const toRelativeTime = (iso: string) => {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "just now";
+  const diffMin = Math.max(1, Math.floor((now - then) / 60000));
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+};
+
+const formatDeadline = (value: string | null) => {
+  if (!value) return "Open";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
+};
+
 const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLabel?: string }) => {
-  const key = (branchSlug || "").replace(/-[a-f0-9]{8}$/i, "");
-  const seed = useMemo(() => branchData[key] || branchData.default, [key]);
+  const { collegeId, user, profile } = useAuth();
 
   const [tab, setTab] = useState<"opportunities" | "matchmaker">("opportunities");
   const [showComposer, setShowComposer] = useState(false);
-  const [requests, setRequests] = useState<MatchRequest[]>(seed.requests);
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [requests, setRequests] = useState<MatchRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [posting, setPosting] = useState(false);
   const [form, setForm] = useState({ title: "", needed: "", urgency: "Medium" as MatchRequest["urgency"], scope: "This branch" as MatchRequest["scope"] });
   const opportunitiesRef = useRef<HTMLDivElement | null>(null);
   const requestsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setRequests(seed.requests);
-  }, [seed]);
+    const resolveBranch = async () => {
+      if (!collegeId || !branchSlug) {
+        setBranchId(null);
+        return;
+      }
+
+      const { data: bySlug } = await supabase
+        .from("branches")
+        .select("id")
+        .eq("college_id", collegeId)
+        .ilike("slug", `${branchSlug}%`)
+        .maybeSingle();
+
+      if (bySlug?.id) {
+        setBranchId(bySlug.id);
+        return;
+      }
+
+      if (!branchLabel) {
+        setBranchId(null);
+        return;
+      }
+
+      const { data: byName } = await supabase
+        .from("branches")
+        .select("id")
+        .eq("college_id", collegeId)
+        .eq("name", branchLabel)
+        .maybeSingle();
+
+      setBranchId(byName?.id || null);
+    };
+
+    resolveBranch();
+  }, [collegeId, branchLabel, branchSlug]);
+
+  const refreshBoard = useCallback(async () => {
+    if (!collegeId) {
+      setOpportunities([]);
+      setRequests([]);
+      return;
+    }
+
+    setLoading(true);
+
+    let oppQuery = supabase
+      .from("branch_opportunities")
+      .select("id, title, opportunity_type, deadline, mode, cta_label, link, tags")
+      .eq("college_id", collegeId)
+      .eq("is_active", true)
+      .order("deadline", { ascending: true })
+      .order("created_at", { ascending: false });
+
+    if (branchId) oppQuery = oppQuery.or(`branch_id.eq.${branchId},branch_id.is.null`);
+    else oppQuery = oppQuery.is("branch_id", null);
+
+    let reqQuery = supabase
+      .from("branch_match_requests")
+      .select("id, title, needed, urgency, scope, posted_by_name, created_at")
+      .eq("college_id", collegeId)
+      .eq("status", "open")
+      .order("created_at", { ascending: false });
+
+    if (branchId) reqQuery = reqQuery.or(`branch_id.eq.${branchId},branch_id.is.null`);
+    else reqQuery = reqQuery.is("branch_id", null);
+
+    const [{ data: oppRows, error: oppErr }, { data: reqRows, error: reqErr }] = await Promise.all([oppQuery, reqQuery]);
+
+    if (oppErr) {
+      console.error("[ActionBoard] opportunities fetch error:", oppErr);
+      toast.error("Could not load opportunities");
+    }
+
+    if (reqErr) {
+      console.error("[ActionBoard] requests fetch error:", reqErr);
+      toast.error("Could not load match requests");
+    }
+
+    setOpportunities(
+      (oppRows || []).map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        type: allowedTypes.includes(r.opportunity_type) ? r.opportunity_type : "event",
+        deadline: formatDeadline(r.deadline),
+        mode: allowedModes.includes(r.mode) ? r.mode : "Remote",
+        ctaLabel: r.cta_label || "Apply",
+        link: r.link || "#",
+        tags: Array.isArray(r.tags) ? r.tags : [],
+      }))
+    );
+
+    setRequests(
+      (reqRows || []).map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        needed: r.needed,
+        urgency: allowedUrgency.includes(r.urgency) ? r.urgency : "Medium",
+        scope: r.scope === "All branches" ? "All branches" : "This branch",
+        postedBy: r.posted_by_name || "Student",
+        postedAt: toRelativeTime(r.created_at),
+      }))
+    );
+
+    setLoading(false);
+  }, [branchId, collegeId]);
+
+  useEffect(() => {
+    refreshBoard();
+  }, [refreshBoard]);
+
+  useEffect(() => {
+    if (!collegeId) return;
+    const channel = supabase
+      .channel(`branch-action-board-${collegeId}-${branchId || "all"}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "branch_opportunities", filter: `college_id=eq.${collegeId}` },
+        () => refreshBoard()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "branch_match_requests", filter: `college_id=eq.${collegeId}` },
+        () => refreshBoard()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [branchId, collegeId, refreshBoard]);
 
   const scrollRail = (target: "opportunities" | "requests", dir: -1 | 1) => {
     const ref = target === "opportunities" ? opportunitiesRef : requestsRef;
@@ -96,23 +215,74 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
   };
 
   const submitRequest = () => {
-    const title = form.title.trim();
-    const needed = form.needed.trim();
-    if (!title || !needed) return;
+    const post = async () => {
+      const title = form.title.trim();
+      const needed = form.needed.trim();
+      if (!title || !needed) {
+        toast.error("Please add title and skills needed");
+        return;
+      }
 
-    const item: MatchRequest = {
-      id: `rq-local-${Date.now()}`,
-      title,
-      needed,
-      urgency: form.urgency,
-      scope: form.scope,
-      postedBy: "You",
-      postedAt: "just now",
+      if (!user) {
+        toast.error("Please log in to post a request");
+        return;
+      }
+
+      if (!collegeId) {
+        toast.error("No active college selected");
+        return;
+      }
+
+      if (form.scope === "This branch" && !branchId) {
+        toast.error("Branch not resolved. Try again in a moment.");
+        return;
+      }
+
+      setPosting(true);
+
+      const { data, error } = await supabase
+        .from("branch_match_requests")
+        .insert({
+          college_id: collegeId,
+          branch_id: form.scope === "This branch" ? branchId : null,
+          title,
+          needed,
+          urgency: form.urgency,
+          scope: form.scope,
+          posted_by: user.id,
+          posted_by_name: profile?.full_name || user.email?.split("@")[0] || "You",
+        })
+        .select("id, title, needed, urgency, scope, posted_by_name, created_at")
+        .single();
+
+      if (error) {
+        console.error("[ActionBoard] post request error:", error);
+        toast.error(error.message || "Could not publish request");
+        setPosting(false);
+        return;
+      }
+
+      setRequests((prev) => [
+        {
+          id: data.id,
+          title: data.title,
+          needed: data.needed,
+          urgency: allowedUrgency.includes(data.urgency as MatchRequest["urgency"]) ? (data.urgency as MatchRequest["urgency"]) : "Medium",
+          scope: data.scope === "All branches" ? "All branches" : "This branch",
+          postedBy: data.posted_by_name || "You",
+          postedAt: toRelativeTime(data.created_at),
+        },
+        ...prev,
+      ]);
+
+      setForm({ title: "", needed: "", urgency: "Medium", scope: "This branch" });
+      setShowComposer(false);
+      setTab("matchmaker");
+      setPosting(false);
+      toast.success("Request published");
     };
-    setRequests((prev) => [item, ...prev]);
-    setForm({ title: "", needed: "", urgency: "Medium", scope: "This branch" });
-    setShowComposer(false);
-    setTab("matchmaker");
+
+    post();
   };
 
   return (
@@ -168,14 +338,14 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Auto-refresh window: 6h</span>
                 <div className="flex items-center gap-2">
-                  <span>Source: trusted feed + campus updates</span>
+                  <span>Source: database (college scoped)</span>
                   <button onClick={() => scrollRail("opportunities", -1)} className="h-6 w-6 rounded-md border border-border/30 hover:bg-secondary/50 inline-flex items-center justify-center"><ChevronLeft className="h-3.5 w-3.5" /></button>
                   <button onClick={() => scrollRail("opportunities", 1)} className="h-6 w-6 rounded-md border border-border/30 hover:bg-secondary/50 inline-flex items-center justify-center"><ChevronRight className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
 
               <div ref={opportunitiesRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {seed.opportunities.map((item) => (
+                {opportunities.map((item) => (
                   <div key={item.id} className="min-w-[290px] md:min-w-[340px] snap-start rounded-xl border border-border/30 bg-background/30 px-3.5 py-3">
                     <div className="flex items-start gap-2">
                       <div className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${typePill[item.type]}`}>{item.type}</div>
@@ -200,6 +370,11 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
                     </div>
                   </div>
                 ))}
+                {!loading && opportunities.length === 0 && (
+                  <div className="min-w-full rounded-xl border border-dashed border-border/40 bg-background/20 px-4 py-8 text-center text-xs text-muted-foreground">
+                    No opportunities added yet for this branch.
+                  </div>
+                )}
               </div>
             </motion.div>
           ) : (
@@ -300,6 +475,11 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
                     </div>
                   </div>
                 ))}
+                {!loading && requests.length === 0 && (
+                  <div className="min-w-full rounded-xl border border-dashed border-border/40 bg-background/20 px-4 py-8 text-center text-xs text-muted-foreground">
+                    No active requests yet. Be the first to post.
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -307,7 +487,7 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
 
         <div className="mt-3 text-[10px] text-muted-foreground/90 flex items-center gap-1.5">
           <WandSparkles className="h-3 w-3 text-primary" />
-          MVP mode: local post preview only. No database write yet.
+          Live mode: connected to database with college-wise tenant filtering.
         </div>
       </div>
     </div>
