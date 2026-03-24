@@ -10,7 +10,7 @@ import Navbar from "@/components/Navbar";
 import IEEECarousel from "@/components/ieee/IEEECarousel";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useIEEEMembers, useIEEEConferences } from "@/hooks/use-supabase-data";
+import { useIEEEMembers, useIEEEConferences, useIEEEResearchPapers } from "@/hooks/use-supabase-data";
 
 // --- Animated Circuit Board Background ---
 const CircuitBoard = () => (
@@ -61,6 +61,16 @@ const fallbackPapers = [
   { title: "Energy-Efficient Routing Protocols for 6G Networks", authors: "A. Patel, M. Reddy", journal: "IEEE Communications Letters", year: 2024, citations: 35, doi: "10.1109/LCOMM.2024.073" },
   { title: "Adversarial Robustness in Computer Vision Models", authors: "N. Mishra, K. Das", journal: "IEEE CVPR Workshop", year: 2024, citations: 19, doi: "10.1109/CVPRW.2024.055" },
 ];
+
+type PaperItem = {
+  title: string;
+  authors: string;
+  journal: string;
+  year: number | string;
+  citations: number;
+  doi: string;
+  paperUrl?: string | null;
+};
 
 const tagColors: Record<string, string> = {
   CONFERENCE: "bg-primary/20 text-primary border-primary/30",
@@ -196,7 +206,7 @@ const MemberCard = ({ member, index }: { member: any; index: number }) => (
 );
 
 // --- Paper Card ---
-const PaperCard = ({ paper, index }: { paper: typeof fallbackPapers[0]; index: number }) => (
+const PaperCard = ({ paper, index }: { paper: PaperItem; index: number }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -221,7 +231,19 @@ const PaperCard = ({ paper, index }: { paper: typeof fallbackPapers[0]; index: n
       <span className="text-[10px] text-muted-foreground flex items-center gap-1">
         <Link2 className="h-3 w-3" /> DOI: {paper.doi}
       </span>
-      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+      {paper.paperUrl ? (
+        <a
+          href={paper.paperUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex"
+          aria-label="Open paper"
+        >
+          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+        </a>
+      ) : (
+        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50" />
+      )}
     </div>
   </motion.div>
 );
@@ -232,6 +254,7 @@ const IEEE = () => {
   const [activeTab, setActiveTab] = useState<"members" | "conferences" | "papers">("members");
   const { data: dbMembers = [], isLoading } = useIEEEMembers();
   const { data: dbConferences = [] } = useIEEEConferences();
+  const { data: dbPapers = [] } = useIEEEResearchPapers();
 
   // Use DB conferences if available, otherwise fallback
   const conferences = dbConferences.length > 0
@@ -253,6 +276,24 @@ const IEEE = () => {
 
   const totalPapers = dbMembers.reduce((a: number, m: any) => a + (m.research_papers || 0), 0);
   const officers = dbMembers.filter((m: any) => m.is_officer);
+
+  const papers: PaperItem[] = dbPapers.length > 0
+    ? dbPapers.map((p: any) => ({
+        title: p.title || "Untitled",
+        authors: p.authors || "Unknown",
+        journal: p.publisher || p.source || "Research",
+        year: p.publication_date
+          ? String(p.publication_date).slice(0, 4)
+          : "-",
+        citations: Number(p.citations || 0),
+        doi: p.doi || "-",
+        paperUrl: p.paper_url || null,
+      }))
+    : fallbackPapers.map((p) => ({ ...p, paperUrl: null }));
+
+  const totalPublishedPapers = dbPapers.length > 0
+    ? dbPapers.length
+    : totalPapers;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -305,7 +346,7 @@ const IEEE = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
           <StatCard icon={Users} value={String(dbMembers.length)} label="Members" color="hsl(263 70% 58%)" />
           <StatCard icon={Award} value={String(officers.length)} label="Officers" color="hsl(30 95% 55%)" />
-          <StatCard icon={FileText} value={String(totalPapers)} label="Papers Published" color="hsl(160 70% 45%)" />
+          <StatCard icon={FileText} value={String(totalPublishedPapers)} label="Papers Published" color="hsl(160 70% 45%)" />
           <StatCard icon={Globe} value={String(new Set(dbMembers.map((m: any) => m.department).filter(Boolean)).size)} label="Departments" color="hsl(340 80% 55%)" />
         </div>
 
@@ -407,8 +448,8 @@ const IEEE = () => {
               Browse published research papers by IEEE student branch members with citation counts and DOI links.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {fallbackPapers.map((paper, i) => (
-                <PaperCard key={paper.doi} paper={paper} index={i} />
+              {papers.map((paper, i) => (
+                <PaperCard key={`${paper.doi}-${i}`} paper={paper} index={i} />
               ))}
             </div>
           </motion.div>
