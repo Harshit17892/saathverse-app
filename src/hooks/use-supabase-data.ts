@@ -697,10 +697,14 @@ export const useIEEEResearchPapers = () => {
   const { collegeId } = useAuth();
   return useQuery({
     queryKey: ["ieee_research_papers", collegeId],
+    enabled: !!collegeId,
     queryFn: async () => {
-      let q = supabase.from("ieee_research_papers" as any).select("*").eq("is_active", true).order("sort_order");
-      if (collegeId) q = q.eq("college_id", collegeId);
-      const { data, error } = await q;
+      const { data, error } = await supabase
+        .from("ieee_research_papers" as any)
+        .select("*")
+        .eq("is_active", true)
+        .eq("college_id", collegeId!)
+        .order("sort_order");
       if (error) throw error;
       return data as any[];
     },
@@ -711,10 +715,13 @@ export const useAllIEEEResearchPapers = () => {
   const { collegeId } = useAuth();
   return useQuery({
     queryKey: ["ieee_research_papers_all", collegeId],
+    enabled: !!collegeId,
     queryFn: async () => {
-      let q = supabase.from("ieee_research_papers" as any).select("*").order("sort_order");
-      if (collegeId) q = q.eq("college_id", collegeId);
-      const { data, error } = await q;
+      const { data, error } = await supabase
+        .from("ieee_research_papers" as any)
+        .select("*")
+        .eq("college_id", collegeId!)
+        .order("sort_order");
       if (error) throw error;
       return data as any[];
     },
@@ -726,6 +733,7 @@ export const useUpsertIEEEResearchPaper = () => {
   const { collegeId } = useAuth();
   return useMutation({
     mutationFn: async (s: any) => {
+      if (!collegeId) throw new Error("No active college selected");
       const { data, error } = await supabase.from("ieee_research_papers" as any).upsert({ ...s, college_id: collegeId }).select().single();
       if (error) throw error;
       return data;
