@@ -692,6 +692,65 @@ export const useDeleteIEEEConference = () => {
   });
 };
 
+// ==================== IEEE RESEARCH PAPERS ====================
+export const useIEEEResearchPapers = () => {
+  const { collegeId } = useAuth();
+  return useQuery({
+    queryKey: ["ieee_research_papers", collegeId],
+    queryFn: async () => {
+      let q = supabase.from("ieee_research_papers" as any).select("*").eq("is_active", true).order("sort_order");
+      if (collegeId) q = q.eq("college_id", collegeId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+};
+
+export const useAllIEEEResearchPapers = () => {
+  const { collegeId } = useAuth();
+  return useQuery({
+    queryKey: ["ieee_research_papers_all", collegeId],
+    queryFn: async () => {
+      let q = supabase.from("ieee_research_papers" as any).select("*").order("sort_order");
+      if (collegeId) q = q.eq("college_id", collegeId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+};
+
+export const useUpsertIEEEResearchPaper = () => {
+  const qc = useQueryClient();
+  const { collegeId } = useAuth();
+  return useMutation({
+    mutationFn: async (s: any) => {
+      const { data, error } = await supabase.from("ieee_research_papers" as any).upsert({ ...s, college_id: collegeId }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ieee_research_papers"] });
+      qc.invalidateQueries({ queryKey: ["ieee_research_papers_all"] });
+    },
+  });
+};
+
+export const useDeleteIEEEResearchPaper = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("ieee_research_papers" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ieee_research_papers"] });
+      qc.invalidateQueries({ queryKey: ["ieee_research_papers_all"] });
+    },
+  });
+};
+
 // ==================== IEEE CAROUSEL ====================
 export const useIEEECarousel = () => {
   const { collegeId } = useAuth();
