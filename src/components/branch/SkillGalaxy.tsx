@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Radar, Sparkles, TrendingUp } from "lucide-react";
 
 interface SkillNode {
@@ -100,9 +100,9 @@ const generateSkillNodes = (branchSlug?: string): SkillNode[] => {
 
   const maxCount = Math.max(...skills.map(s => s.count));
   const positions = [
-    [50, 17], [20, 30], [80, 30], [14, 54], [86, 54],
-    [33, 43], [67, 43], [28, 69], [72, 69], [50, 52],
-    [10, 78], [90, 78], [38, 86], [62, 86],
+    [50, 30], [25, 50], [75, 50], [40, 65], [60, 35],
+    [15, 35], [85, 40], [30, 80], [70, 75], [50, 55],
+    [20, 65], [80, 25], [55, 85], [45, 15],
   ];
 
   return skills.map((s, i) => ({
@@ -190,18 +190,10 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
   const focused = nodes[activeNode ?? 0];
   const totalDensity = nodes.reduce((sum, n) => sum + n.count, 0);
   const avgDensity = Math.round(totalDensity / nodes.length);
-  const highlightedNodeIndexes = useMemo(() => {
-    return nodes
-      .map((node, idx) => ({ idx, count: node.count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5)
-      .map((entry) => entry.idx);
-  }, [nodes]);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/30 glass">
       <div className={`absolute inset-0 bg-gradient-to-br ${theme.panel}`} />
-      <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(to_right,hsl(var(--foreground))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground))_1px,transparent_1px)] [background-size:22px_22px]" />
       <div
         className="absolute -top-16 -left-16 h-56 w-56 rounded-full blur-3xl"
         style={{ backgroundColor: theme.glowA }}
@@ -230,26 +222,16 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
         <span className="text-[10px] px-2 py-1 rounded-full border border-border/40 bg-background/40 text-muted-foreground inline-flex items-center gap-1">
           <Radar className="w-3 h-3" /> Live map
         </span>
-        <span className="text-[10px] px-2 py-1 rounded-full border border-border/40 bg-background/40 text-muted-foreground inline-flex items-center gap-1">
-          Top 5 highlighted
-        </span>
       </div>
 
-      <div className="relative w-full aspect-[2/1] min-h-[285px]">
+      <div className="relative w-full aspect-[2/1] min-h-[250px]">
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
           <defs>
             <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor={theme.node} stopOpacity="0.65" />
               <stop offset="100%" stopColor={theme.node} stopOpacity="0" />
             </radialGradient>
-            <radialGradient id="nodeCore" cx="30%" cy="30%" r="70%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.45" />
-              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-            </radialGradient>
           </defs>
-
-          <circle cx="50" cy="52" r="36" fill="none" stroke={theme.line} strokeOpacity="0.14" strokeWidth="0.25" strokeDasharray="1.5 1" />
-          <circle cx="50" cy="52" r="22" fill="none" stroke={theme.line} strokeOpacity="0.12" strokeWidth="0.22" strokeDasharray="1 1" />
 
           {/* Connections */}
           {connections.map(([a, b], i) => {
@@ -296,7 +278,6 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
           {/* Nodes */}
           {nodes.map((node, i) => {
             const isActive = activeNode === i;
-            const isHighlighted = highlightedNodeIndexes.includes(i);
             const r = node.size / 10;
             return (
               <g key={i}>
@@ -323,7 +304,7 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
                   cy={node.y}
                   r={r}
                   fill={isActive ? theme.nodeActive : theme.node}
-                  opacity={isActive ? 0.95 : isHighlighted ? 0.72 : 0.42}
+                  opacity={isActive ? 0.9 : 0.5}
                   className="cursor-pointer"
                   onMouseEnter={() => setActiveNode(i)}
                   onMouseLeave={() => setActiveNode(null)}
@@ -335,33 +316,19 @@ const SkillGalaxy = ({ branchSlug }: { branchSlug?: string }) => {
                   style={{ originX: `${node.x}px`, originY: `${node.y}px` }}
                 />
 
-                <circle cx={node.x - r * 0.25} cy={node.y - r * 0.25} r={r * 0.72} fill="url(#nodeCore)" opacity={isActive ? 0.45 : 0.2} />
-
                 {/* Label */}
-                {(isActive || isHighlighted) && (
-                  <g className="pointer-events-none select-none">
-                    <rect
-                      x={node.x - Math.max(7.5, node.name.length * 0.62)}
-                      y={node.y + r + 0.9}
-                      width={Math.max(15, node.name.length * 1.24)}
-                      height="3.4"
-                      rx="1.7"
-                      fill="hsl(var(--background))"
-                      opacity={isActive ? 0.8 : 0.55}
-                    />
-                    <text
-                      x={node.x}
-                      y={node.y + r + 3.15}
-                      textAnchor="middle"
-                      fill={isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
-                      fontSize="1.65"
-                      fontWeight={isActive ? "700" : "600"}
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                    >
-                      {node.name}
-                    </text>
-                  </g>
-                )}
+                <text
+                  x={node.x}
+                  y={node.y + r + 2.5}
+                  textAnchor="middle"
+                  fill={isActive ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
+                  fontSize="2"
+                  fontWeight={isActive ? "700" : "500"}
+                  className="pointer-events-none select-none"
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  {node.name}
+                </text>
 
                 {/* Count badge */}
                 {isActive && (
