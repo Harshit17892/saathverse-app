@@ -584,35 +584,43 @@ const BranchDetail = () => {
         setDbStudents([]);
       }
 
-      // 4. Fetch events — include both branch-specific and global (All branches) items.
-      const eventBranchId = oldBranchId;
-      let eventsQuery = supabase
-        .from("events")
-        .select("*")
-        .order("date", { ascending: true });
+      // 4. Fetch events with strict tenant scoping (college-wise only).
+      // Include both branch-specific and global (All branches) items within the same college.
+      if (collegeId) {
+        const eventBranchId = oldBranchId;
+        let eventsQuery = supabase
+          .from("events")
+          .select("*")
+          .eq("college_id", collegeId)
+          .order("date", { ascending: true });
 
-      if (eventBranchId) {
-        eventsQuery = eventsQuery.or(`branch_id.eq.${eventBranchId},branch_id.is.null`);
+        if (eventBranchId) {
+          eventsQuery = eventsQuery.or(`branch_id.eq.${eventBranchId},branch_id.is.null`);
+        } else {
+          eventsQuery = eventsQuery.is("branch_id", null);
+        }
+
+        const { data: eventsData } = await eventsQuery;
+        if (eventsData) {
+          const normalized = [...eventsData]
+            .filter((e: any) => e.is_active !== false)
+            .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+
+          setBranchEvents(normalized.map((e: any) => ({
+            title: e.title,
+            tag: e.event_type || "general",
+            desc: e.description || "",
+            date: e.date ? new Date(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBA",
+            image_url: e.image_url || null,
+            hyperlink: e.hyperlink || null,
+            icon: e.icon || null,
+            gradient: e.gradient || null,
+          })));
+        } else {
+          setBranchEvents([]);
+        }
       } else {
-        eventsQuery = eventsQuery.is("branch_id", null);
-      }
-
-      const { data: eventsData } = await eventsQuery;
-      if (eventsData) {
-        const normalized = [...eventsData]
-          .filter((e: any) => e.is_active !== false)
-          .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
-
-        setBranchEvents(normalized.map((e: any) => ({
-          title: e.title,
-          tag: e.event_type || "general",
-          desc: e.description || "",
-          date: e.date ? new Date(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBA",
-          image_url: e.image_url || null,
-          hyperlink: e.hyperlink || null,
-          icon: e.icon || null,
-          gradient: e.gradient || null,
-        })));
+        setBranchEvents([]);
       }
 
       // 5. Fetch featured students — use old branch_id (branch_featured_students still references old branches)
