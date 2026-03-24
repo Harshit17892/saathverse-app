@@ -2686,6 +2686,7 @@ const Admin = () => {
               <ImageCropper
                 imageSrc={form._cropSrc}
                 aspectRatio={16 / 9}
+                circularCrop={false}
                 onCancel={() => setF("_cropSrc", null)}
                 onCropComplete={async (blob: Blob) => {
                   setF("_cropSrc", null);
@@ -2782,6 +2783,7 @@ const Admin = () => {
               <ImageCropper
                 imageSrc={form._cropSrc}
                 aspectRatio={16 / 9}
+                circularCrop={false}
                 onCancel={() => setF("_cropSrc", null)}
                 onCropComplete={async (blob: Blob) => {
                   setF("_cropSrc", null);
@@ -2910,6 +2912,7 @@ const Admin = () => {
               <ImageCropper
                 imageSrc={form._cropSrc}
                 aspectRatio={16 / 9}
+                circularCrop={false}
                 onCancel={() => setF("_cropSrc", null)}
                 onCropComplete={async (blob: Blob) => {
                   setF("_cropSrc", null);
@@ -2985,6 +2988,7 @@ const Admin = () => {
               <ImageCropper
                 imageSrc={form._cropSrc}
                 aspectRatio={16 / 9}
+                circularCrop={false}
                 onCancel={() => setF("_cropSrc", null)}
                 onCropComplete={async (blob: Blob) => {
                   setF("_cropSrc", null);
