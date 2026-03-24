@@ -380,26 +380,38 @@ const IEEE = () => {
             </div>
 
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-7">
-              <Link
-                to="/ieee/research-ideas"
-                className="group block rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-accent/10 p-4 md:p-5 hover:border-primary/40 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-[11px] tracking-wider uppercase text-primary font-semibold mb-1">Research Topic Assistant</p>
-                    <h3 className="font-display text-lg md:text-xl font-bold text-foreground leading-tight">
-                      Want to write a research paper but no idea on topic?
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Explore weekly trending category-wise ideas across AI/ML, Electronics, IoT, Medical, Cybersecurity, Data Science, Robotics, Quantum, Green Tech, FinTech, Tech Law, and Photonics.
-                    </p>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2 text-primary">
-                    <Lightbulb className="h-5 w-5" />
-                    <ArrowUpRight className="h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-[radial-gradient(1200px_350px_at_0%_0%,rgba(139,92,246,0.20),transparent_55%),radial-gradient(900px_320px_at_100%_100%,rgba(249,115,22,0.15),transparent_50%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(10,10,26,0.92))] p-[1px]">
+                <div className="relative rounded-3xl bg-background/75 backdrop-blur-xl p-5 md:p-6">
+                  <div className="absolute -top-16 -right-10 h-40 w-40 rounded-full bg-primary/20 blur-3xl" />
+                  <div className="absolute -bottom-16 -left-8 h-44 w-44 rounded-full bg-accent/20 blur-3xl" />
+                  <div className="relative z-10 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[11px] tracking-widest uppercase text-primary font-semibold mb-1.5">Research Topic Assistant</p>
+                      <h3 className="font-display text-xl md:text-2xl font-black text-foreground leading-tight">
+                        Want to write a research paper but no idea on topic?
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
+                        Web3-style trend explorer with branch-specific categories, weekly refreshed ideas, methods, and acceptance-oriented trend reasoning.
+                      </p>
+
+                      <Link
+                        to="/ieee/research-ideas"
+                        className="inline-flex items-center gap-2 mt-4 px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet-500 text-primary-foreground font-semibold text-sm shadow-[0_0_24px_rgba(124,58,237,0.45)] hover:shadow-[0_0_32px_rgba(124,58,237,0.60)] transition-all"
+                      >
+                        <Lightbulb className="h-4 w-4" />
+                        Research with Ai
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Link>
+                    </div>
+
+                    <div className="shrink-0 hidden sm:flex">
+                      <div className="h-14 w-14 rounded-2xl border border-primary/30 bg-primary/10 flex items-center justify-center text-primary">
+                        <Lightbulb className="h-6 w-6" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             </motion.div>
 
             <h2 className="font-display text-2xl font-bold text-foreground mb-6 flex items-center gap-2">
