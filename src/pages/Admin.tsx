@@ -264,6 +264,25 @@ const Admin = () => {
     slug: b.slug,
   }));
 
+  // Use legacy branches table IDs for forms that persist branch_id (UUID).
+  const formBranchOptions = (branches || []).map((b: any) => ({
+    id: b.id,
+    name: b.name,
+    slug: b.slug,
+  }));
+
+  const resolveLegacyBranchId = (rawBranchId: any): string | null => {
+    if (!rawBranchId) return null;
+    const value = String(rawBranchId).trim();
+    if (!value) return null;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+    if (isUuid) return value;
+
+    const matched = (branches || []).find((b: any) => b.id === value || b.slug === value || b.name === value);
+    return matched?.id || null;
+  };
+
   const { data: formSettingsData = [] } = useFormSettings(activeCollegeId);
   const upsertFormSetting = useUpsertFormSetting();
 
@@ -994,14 +1013,14 @@ const Admin = () => {
       if (section === "colleges") {
         await upsertCollege.mutateAsync({ ...base, name: form.name || "", domain: (form.domain || "").replace(/^@+/, ""), city: form.city || null, state: form.state || null, logo_url: form.logo_url || null });
       } else if (section === "students") {
-        await upsertStudent.mutateAsync({ ...base, name: form.name || "", email: form.email || null, branch_id: form.branch_id || null, graduation_year: form.graduation_year ? Number(form.graduation_year) : null, bio: form.bio || null, skills: form.skills ? (typeof form.skills === "string" ? form.skills.split(",").map((s: string) => s.trim()) : form.skills) : [], status: form.status || "active", is_topper: form.is_topper === "true" || form.is_topper === true, xp_points: form.xp_points ? Number(form.xp_points) : 0, social_links: { company: form.company || null, company_type: form.company_type || null } });
+        await upsertStudent.mutateAsync({ ...base, name: form.name || "", email: form.email || null, branch_id: resolveLegacyBranchId(form.branch_id), graduation_year: form.graduation_year ? Number(form.graduation_year) : null, bio: form.bio || null, skills: form.skills ? (typeof form.skills === "string" ? form.skills.split(",").map((s: string) => s.trim()) : form.skills) : [], status: form.status || "active", is_topper: form.is_topper === "true" || form.is_topper === true, xp_points: form.xp_points ? Number(form.xp_points) : 0, social_links: { company: form.company || null, company_type: form.company_type || null } });
       } else if (section === "events") {
         await upsertEvent.mutateAsync({
           ...base,
           title: form.title || "",
           description: form.description || null,
           event_type: form.event_type || "general",
-          branch_id: form.branch_id || null,
+          branch_id: resolveLegacyBranchId(form.branch_id),
           date: form.date || null,
           location: form.location || null,
           image_url: form.image_url || null,
@@ -1016,7 +1035,7 @@ const Admin = () => {
       } else if (section === "achievements") {
         await upsertAchievement.mutateAsync({ ...base, student_id: form.student_id || "", title: form.title || "", description: form.description || null, achievement_type: form.achievement_type || "general" });
       } else if (section === "announcements") {
-        await upsertAnnouncement.mutateAsync({ ...base, title: form.title || "", content: form.content || null, priority: form.priority || "normal", branch_id: form.branch_id || null, is_pinned: form.is_pinned === "true" || form.is_pinned === true });
+        await upsertAnnouncement.mutateAsync({ ...base, title: form.title || "", content: form.content || null, priority: form.priority || "normal", branch_id: resolveLegacyBranchId(form.branch_id), is_pinned: form.is_pinned === "true" || form.is_pinned === true });
       } else if (section === "hackathons") {
         await upsertHackathon.mutateAsync({ ...base, title: form.title || "", tagline: form.tagline || null, date: form.date || null, end_date: form.end_date || null, location: form.location || null, participants: form.participants ? Number(form.participants) : 0, max_participants: form.max_participants ? Number(form.max_participants) : 100, prize: form.prize || null, status: form.status || "upcoming", tags: form.tags ? (typeof form.tags === "string" ? form.tags.split(",").map((s: string) => s.trim()) : form.tags) : [], gradient: form.gradient || "from-primary to-purple-400", icon: form.icon || "globe", link: form.link || null });
       } else if (section === "clubs") {
@@ -1094,8 +1113,9 @@ const Admin = () => {
       } else if (section === "ieee_conferences") {
         await upsertIEEEConf.mutateAsync({ ...base, title: form.title || "", description: form.description || null, conference_type: form.conference_type || "conference", date: form.date || null, end_date: form.end_date || null, location: form.location || null, hyperlink: form.hyperlink || null, sort_order: form.sort_order ? Number(form.sort_order) : 0, is_active: form.is_active === "true" || form.is_active === true });
       } else if (section === "branch_featured") {
-        if (!form.branch_id || !form.student_id) { toast({ title: "Please select both a branch and a student", variant: "destructive" }); return; }
-        await upsertBranchFeatured.mutateAsync({ ...base, branch_id: form.branch_id, student_id: form.student_id, achievement: form.achievement || null, sort_order: form.sort_order ? Number(form.sort_order) : 0 });
+        const resolvedBranchId = resolveLegacyBranchId(form.branch_id);
+        if (!resolvedBranchId || !form.student_id) { toast({ title: "Please select both a branch and a student", variant: "destructive" }); return; }
+        await upsertBranchFeatured.mutateAsync({ ...base, branch_id: resolvedBranchId, student_id: form.student_id, achievement: form.achievement || null, sort_order: form.sort_order ? Number(form.sort_order) : 0 });
       } else if (section === "startup_carousel") {
         await upsertStartupCarouselMut.mutateAsync({ ...base, title: form.title || "", description: form.description || null, image_url: form.image_url || null, category: form.category || "featured", hyperlink: form.hyperlink || null, link_text: form.link_text || "Learn More", sort_order: form.sort_order ? Number(form.sort_order) : 0, is_active: form.is_active === "true" || form.is_active === true });
       } else if (section === "discover_carousel") {
@@ -2278,9 +2298,9 @@ const Admin = () => {
             <Field label="Branch">
               <select className={selectClass} value={form.branch_id || ""} onChange={(e) => setF("branch_id", e.target.value)}>
                 <option value="">Select branch</option>
-                {displayBranches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {formBranchOptions.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
-              {(!branches || branches.length === 0) && displayBranches.length === 0 && (
+              {formBranchOptions.length === 0 && (
                 <p className="text-[11px] text-accent mt-1">No branches found. Add branches in the Branches section first.</p>
               )}
             </Field>
@@ -2332,7 +2352,7 @@ const Admin = () => {
             <Field label="Branch">
               <select className={selectClass} value={form.branch_id || ""} onChange={(e) => setF("branch_id", e.target.value)}>
                 <option value="">All branches</option>
-                {displayBranches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {formBranchOptions.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Field>
 
@@ -2451,7 +2471,7 @@ const Admin = () => {
             <Field label="Branch">
               <select className={selectClass} value={form.branch_id || ""} onChange={(e) => setF("branch_id", e.target.value)}>
                 <option value="">All branches</option>
-                {displayBranches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {formBranchOptions.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Field>
             <Field label="Pinned?">
@@ -2963,7 +2983,7 @@ const Admin = () => {
             <Field label="Branch">
               <select className={selectClass} value={form.branch_id || ""} onChange={(e) => setF("branch_id", e.target.value)}>
                 <option value="">Select branch</option>
-                {displayBranches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {formBranchOptions.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </Field>
             <Field label="Student">
@@ -2971,9 +2991,10 @@ const Admin = () => {
                 <option value="">Select student</option>
                 {(students || []).filter((s: any) => {
                   if (!form.branch_id) return true;
-                  if (s.branch_id === form.branch_id) return true;
+                  const selectedBranchId = resolveLegacyBranchId(form.branch_id);
+                  if (selectedBranchId && s.branch_id === selectedBranchId) return true;
                   // Fuzzy match: check if student's branch_name is a sub-branch of the selected branch
-                  const selectedBranch = displayBranches.find((b: any) => b.id === form.branch_id);
+                  const selectedBranch = formBranchOptions.find((b: any) => b.id === selectedBranchId);
                   if (selectedBranch && s.branch_name) {
                     return branchesData.some(main =>
                       main.name === selectedBranch.name &&
