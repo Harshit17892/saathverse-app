@@ -8,6 +8,14 @@ const corsHeaders = {
 
 const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
 
+const buildInviteRedirectUrl = () => {
+  const explicit = Deno.env.get("ADMIN_INVITE_REDIRECT_URL")?.trim();
+  if (explicit) return explicit;
+
+  const siteUrl = (Deno.env.get("SITE_URL") || "https://www.saathverse.com").trim().replace(/\/$/, "");
+  return `${siteUrl}/auth/callback`;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -50,9 +58,8 @@ Deno.serve(async (req) => {
 
     const callerId = callerUser.id;
     const callerEmail = (callerUser.email || "").toLowerCase();
-    console.log("Authenticated caller:", callerId, callerEmail);
+    console.log("Authenticated caller:", callerId);
 
-    // ✅ FIXED: removed .in("role", [...]) which was crashing on unknown enum values
     const { data: roleRows, error: roleErr } = await adminClient
       .from("user_roles")
       .select("role")
@@ -68,19 +75,18 @@ Deno.serve(async (req) => {
 
     const roleSet = new Set((roleRows || []).map((r: any) => String(r.role)));
     const isAdmin = roleSet.has("admin") || roleSet.has("college_admin");
+    const isSuperAdmin = roleSet.has("super_admin");
+
     const isEmailSuperAdmin = SUPER_ADMIN_EMAILS.includes(callerEmail);
 
-    console.log("Roles found:", [...roleSet], "isAdmin:", isAdmin, "isEmailSuperAdmin:", isEmailSuperAdmin);
-
-    if (!isAdmin && !isEmailSuperAdmin) {
+    if (!isAdmin && !isSuperAdmin && !isEmailSuperAdmin) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const body = await req.json();
-    const { email, college_id, college_name } = body;
+    const { email, college_id, college_name } = await req.json();
 
     if (!email || !college_id) {
       return new Response(JSON.stringify({ error: "email and college_id required" }), {
@@ -89,24 +95,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the college exists
-    const { data: collegeCheck } = await adminClient
-      .from("colleges")
-      .select("id, name")
-      .eq("id", college_id)
-      .maybeSingle();
-
-    if (!collegeCheck) {
-      return new Response(JSON.stringify({ error: "College not found" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    // Check if this exact email+college already has a pending invite
     const normalizedEmail = email.toLowerCase().trim();
-    const resolvedCollegeName = college_name || collegeCheck.name || "your college";
 
-    // Check if this exact email+college already has an invite
     const { data: existingInvite } = await adminClient
       .from("pending_admin_invites")
       .select("id, status")
@@ -121,8 +112,10 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // pending or rejected — delete and re-create to allow re-sending
-      await adminClient.from("pending_admin_invites").delete().eq("id", existingInvite.id);
+      // If pending/rejected, delete old one and re-create (allows re-sending)
+      if (existingInvite.status === "pending" || existingInvite.status === "rejected") {
+        await adminClient.from("pending_admin_invites").delete().eq("id", existingInvite.id);
+      }
     }
 
     // Check invite limit (max 3 per college)
@@ -140,14 +133,16 @@ Deno.serve(async (req) => {
     }
 
     // Store the pending invite
-    const { error: inviteErr } = await adminClient
+    const { data: insertedInvite, error: inviteErr } = await adminClient
       .from("pending_admin_invites")
       .insert({
         email: normalizedEmail,
         college_id,
         role: "college_admin",
         invited_by: callerId,
-      });
+      })
+      .select("id")
+      .single();
 
     if (inviteErr) {
       if (inviteErr.code === "23505") {
@@ -159,33 +154,39 @@ Deno.serve(async (req) => {
       throw inviteErr;
     }
 
-    // Try to send invite email via Supabase Auth
-    const siteUrl = Deno.env.get("SITE_URL") || "https://saathverse.com";
+    // Send invite via Supabase Auth (creates user if not exists, sends email)
+    const redirectTo = buildInviteRedirectUrl();
     const { error: authErr } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
       data: {
         college_id,
         invited_as: "college_admin",
-        college_name: resolvedCollegeName,
+        college_name: college_name || "your college",
       },
-      redirectTo: `${siteUrl}/auth/callback`,
+      redirectTo,
     });
 
     if (authErr) {
-      // User already exists — assign role directly
+      // Existing account path: assign role directly
       if (authErr.message?.toLowerCase().includes("already")) {
         const { data: usersPage, error: listErr } = await adminClient.auth.admin.listUsers();
         if (listErr) throw listErr;
 
         const found = usersPage?.users?.find(
-          (u: any) => u.email?.toLowerCase() === normalizedEmail
+          (u) => u.email?.toLowerCase() === normalizedEmail
         );
 
         if (found) {
-          const { error: assignErr } = await adminClient
+          const { error: roleErr } = await adminClient
             .from("user_roles")
-            .insert({ user_id: found.id, role: "college_admin", college_id });
+            .insert({
+              user_id: found.id,
+              role: "college_admin",
+              college_id,
+            });
 
-          if (assignErr && assignErr.code !== "23505") throw assignErr;
+          if (roleErr && roleErr.code !== "23505") {
+            throw roleErr;
+          }
 
           await adminClient
             .from("pending_admin_invites")
@@ -204,11 +205,12 @@ Deno.serve(async (req) => {
       }
 
       console.error("Auth invite error:", authErr);
-      // Don't fail — invite is saved in DB, will auto-apply on signup
+
       return new Response(JSON.stringify({
         success: true,
         message: `Invite saved for ${normalizedEmail}. Email delivery failed but invite will auto-apply on signup.`,
         email_failed: true,
+        error: authErr.message || "Failed to send invite",
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -220,9 +222,8 @@ Deno.serve(async (req) => {
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (err: any) {
-    console.error("Unhandled error:", err);
+    console.error("Error:", err);
     return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
