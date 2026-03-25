@@ -14,9 +14,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const authHeader = req.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -26,15 +32,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Validate caller using getUser (more reliable in Edge runtime)
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const jwt = authHeader.replace("Bearer ", "").trim();
 
     const {
       data: { user: callerUser },
       error: userErr,
-    } = await callerClient.auth.getUser();
+    } = await adminClient.auth.getUser(jwt);
 
     if (userErr || !callerUser) {
       console.error("Caller auth failed:", userErr);
@@ -48,26 +52,23 @@ Deno.serve(async (req) => {
     const callerEmail = (callerUser.email || "").toLowerCase();
     console.log("Authenticated caller:", callerId);
 
-    // Check caller is admin OR super_admin using service role client
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data: roleRows, error: roleErr } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId)
+      .in("role", ["admin", "super_admin", "college_admin"]);
 
-    const { data: isAdmin, error: adminRoleErr } = await adminClient.rpc("has_role", {
-      _user_id: callerId,
-      _role: "admin",
-    });
-
-    const { data: isSuperAdmin, error: superRoleErr } = await adminClient.rpc("has_role", {
-      _user_id: callerId,
-      _role: "super_admin",
-    });
-
-    if (adminRoleErr || superRoleErr) {
-      console.error("Role check failed:", { adminRoleErr, superRoleErr });
-      return new Response(JSON.stringify({ error: "Role check failed" }), {
+    if (roleErr) {
+      console.error("Role lookup failed:", roleErr);
+      return new Response(JSON.stringify({ error: "Role lookup failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const roleSet = new Set((roleRows || []).map((r: any) => r.role));
+    const isAdmin = roleSet.has("admin") || roleSet.has("college_admin");
+    const isSuperAdmin = roleSet.has("super_admin");
 
     const isEmailSuperAdmin = SUPER_ADMIN_EMAILS.includes(callerEmail);
 
