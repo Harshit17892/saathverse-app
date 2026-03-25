@@ -6,6 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -43,6 +45,7 @@ Deno.serve(async (req) => {
     }
 
     const callerId = callerUser.id;
+    const callerEmail = (callerUser.email || "").toLowerCase();
     console.log("Authenticated caller:", callerId);
 
     // Check caller is admin OR super_admin using service role client
@@ -66,7 +69,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isAdmin && !isSuperAdmin) {
+    const isEmailSuperAdmin = SUPER_ADMIN_EMAILS.includes(callerEmail);
+
+    if (!isAdmin && !isSuperAdmin && !isEmailSuperAdmin) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
