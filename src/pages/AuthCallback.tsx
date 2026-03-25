@@ -90,8 +90,8 @@ const AuthCallback = () => {
       } else if (isProfileIncomplete) {
         // Regular user with incomplete profile
         setStatus("success");
-        setMessage("Email verified! Let's set up your profile…");
-        setTimeout(() => navigate("/complete-profile", { replace: true }), 1200);
+        setMessage("Email verified! Let's complete your onboarding…");
+        setTimeout(() => navigate("/onboarding", { replace: true }), 1200);
       } else {
         // Existing user with complete profile
         setStatus("success");
