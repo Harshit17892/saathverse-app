@@ -174,7 +174,8 @@ const Admin = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
   const { toast } = useToast();
-  const { isSuperAdmin, activeCollegeId, setActiveCollegeId, profile, user } = useAuth();
+  const { isSuperAdmin, activeCollegeId, collegeId, setActiveCollegeId, profile, user } = useAuth();
+  const effectiveCollegeId = isSuperAdmin ? activeCollegeId : collegeId;
 
   useCollegesRealtime();
   const { data: colleges = [] } = useColleges();
@@ -718,7 +719,14 @@ const Admin = () => {
         body: { email, college_id: activeCollegeId, college_name: collegeName },
       });
 
-      if (fnError) throw fnError;
+      if (fnError) {
+        const detail =
+          (fnError as any)?.context?.error ||
+          (fnError as any)?.context?.message ||
+          (fnError as any)?.message ||
+          "Edge function request failed";
+        throw new Error(detail);
+      }
 
       // The edge function returns { error: "..." } on validation failures
       if (fnData?.error) {
@@ -777,7 +785,7 @@ const Admin = () => {
 
   const handleExportStudents = async () => {
     try {
-      if (!activeCollegeId) {
+      if (!effectiveCollegeId) {
         toast({ title: "Select college", description: "Please choose an active college first.", variant: "destructive" });
         return;
       }
@@ -786,7 +794,7 @@ const Admin = () => {
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, college_id, full_name, branch, year_of_study, passout_year, is_alumni, bio, skills, photo_url, main_branch_id, specialization_id")
-        .eq("college_id", activeCollegeId);
+        .eq("college_id", effectiveCollegeId);
 
       for (const p of profiles || []) {
         const cy = new Date().getFullYear();
@@ -819,7 +827,7 @@ const Admin = () => {
       const { data: studentsRows, error } = await supabase
         .from("students")
         .select("id, name, email, branch_name, graduation_year, status, bio, skills, created_at, main_branch:main_branch_id(name), specialization:specialization_id(name)")
-        .eq("college_id", activeCollegeId)
+        .eq("college_id", effectiveCollegeId)
         .order("created_at", { ascending: false });
       if (error) throw error;
 
@@ -1302,7 +1310,7 @@ const Admin = () => {
   };
 
   const handleInjectStudents = async () => {
-    if (!activeCollegeId) return;
+    if (!effectiveCollegeId) return;
     toast({ title: "Injecting students...", description: "Please wait.", duration: 3000 });
     
     const branchNames = ["Computer Science Engineering", "Electronics & Communication Engineering", "Mechanical Engineering", "Civil Engineering", "Business Analytics"];
@@ -1315,13 +1323,13 @@ const Admin = () => {
         await supabase.from("branches").insert({
           name: bName,
           slug: bName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          college_id: activeCollegeId
+          college_id: effectiveCollegeId
         });
       }
     }
     
     // Fetch refreshed branches
-    const { data: dbBranches } = await supabase.from("branches").select("id, name").eq("college_id", activeCollegeId);
+    const { data: dbBranches } = await supabase.from("branches").select("id, name").eq("college_id", effectiveCollegeId);
 
     // Insert 20 students
     for (let i = 1; i <= 20; i++) {
@@ -1333,7 +1341,7 @@ const Admin = () => {
        const { error } = await supabase.from("students").insert({
          name,
          email,
-         college_id: activeCollegeId,
+         college_id: effectiveCollegeId,
          branch_id: branchId,
          graduation_year: new Date().getFullYear() + 2,
          status: "active",
@@ -1347,14 +1355,14 @@ const Admin = () => {
   };
 
   const handleSyncProfiles = async () => {
-    if (!activeCollegeId) return;
+    if (!effectiveCollegeId) return;
     toast({ title: "Syncing users...", description: "Pulling actual users from profiles to students table.", duration: 3000 });
     
     // Fetch all profiles belonging to this college
     const { data: profiles, error: pError } = await supabase
        .from("profiles")
        .select("*")
-       .eq("college_id", activeCollegeId);
+       .eq("college_id", effectiveCollegeId);
        
     if (pError || !profiles) {
        toast({ title: "Error", description: "Failed to fetch profiles", variant: "destructive" });
@@ -1431,17 +1439,17 @@ const Admin = () => {
   };
 
   useEffect(() => {
-    if (!activeCollegeId) return;
+    if (!effectiveCollegeId) return;
 
     const channel = supabase
-      .channel(`admin-profile-student-sync-${activeCollegeId}`)
+      .channel(`admin-profile-student-sync-${effectiveCollegeId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "profiles",
-          filter: `college_id=eq.${activeCollegeId}`,
+          filter: `college_id=eq.${effectiveCollegeId}`,
         },
         async (payload: any) => {
           const p = payload?.new;
@@ -1481,7 +1489,7 @@ const Admin = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeCollegeId, queryClient]);
+  }, [effectiveCollegeId, queryClient]);
 
   const activeCollege = colleges.find((c: any) => c.id === activeCollegeId);
 
@@ -3606,7 +3614,7 @@ const DataTable = ({ columns, rows, onEdit, onDelete }: { columns: string[]; row
           <div className="px-4 py-3 border-b border-border/20 flex items-center gap-1 group-hover:bg-secondary/10 transition-colors">
             <button onClick={() => onEdit(row)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/50"><Pencil className="h-3.5 w-3.5" /></button>
             <button onClick={() => onDelete(row.id)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /></button>
-          </div>
+          </div>  
         </motion.div>
       ))}
     </div>
