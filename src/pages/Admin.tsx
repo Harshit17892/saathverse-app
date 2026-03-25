@@ -736,17 +736,25 @@ const Admin = () => {
       }
 
       // The edge function returns { error: "..." } on validation failures
-      if (fnData?.error) {
+      if (fnData?.error && !fnData?.success) {
         toast({ title: "Error", description: fnData.error, variant: "destructive" });
         setAssigningAdmin(false);
         return;
       }
 
-      const successMsg = fnData?.already_registered
-        ? `${email} already has an account — assigned as college admin directly.`
-        : `Invite sent to ${email}. They'll receive an email with instructions to set up their admin account for ${collegeName}.`;
+      if (fnData?.email_failed) {
+        toast({
+          title: "Invite saved (email failed)",
+          description: fnData?.message || "Invite is saved and will auto-apply on signup.",
+          variant: "destructive",
+        });
+      } else {
+        const successMsg = fnData?.message || (fnData?.already_registered
+          ? `${email} already has an account — assigned as college admin directly.`
+          : `Invite sent to ${email}. They'll receive an email with instructions to set up their admin account for ${collegeName}.`);
 
-      toast({ title: "✅ Success!", description: successMsg });
+        toast({ title: "✅ Success!", description: successMsg });
+      }
       setAdminEmail("");
       fetchCollegeAdmins();
     } catch (e: any) {
