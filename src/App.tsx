@@ -34,6 +34,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Gamification from "./pages/Gamification";
 import AdminSetup from "./pages/AdminSetup";
 import CompleteProfile from "./pages/CompleteProfile";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/login" element={<Signup />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/search" element={<SearchResults />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
