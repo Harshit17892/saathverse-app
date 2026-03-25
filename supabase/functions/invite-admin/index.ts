@@ -50,13 +50,13 @@ Deno.serve(async (req) => {
 
     const callerId = callerUser.id;
     const callerEmail = (callerUser.email || "").toLowerCase();
-    console.log("Authenticated caller:", callerId);
+    console.log("Authenticated caller:", callerId, callerEmail);
 
+    // ✅ FIXED: removed .in("role", [...]) which was crashing on unknown enum values
     const { data: roleRows, error: roleErr } = await adminClient
       .from("user_roles")
       .select("role")
-      .eq("user_id", callerId)
-      .in("role", ["admin", "super_admin", "college_admin"]);
+      .eq("user_id", callerId);
 
     if (roleErr) {
       console.error("Role lookup failed:", roleErr);
@@ -66,20 +66,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    const roleSet = new Set((roleRows || []).map((r: any) => r.role));
+    const roleSet = new Set((roleRows || []).map((r: any) => String(r.role)));
     const isAdmin = roleSet.has("admin") || roleSet.has("college_admin");
-    const isSuperAdmin = roleSet.has("super_admin");
-
     const isEmailSuperAdmin = SUPER_ADMIN_EMAILS.includes(callerEmail);
 
-    if (!isAdmin && !isSuperAdmin && !isEmailSuperAdmin) {
+    console.log("Roles found:", [...roleSet], "isAdmin:", isAdmin, "isEmailSuperAdmin:", isEmailSuperAdmin);
+
+    if (!isAdmin && !isEmailSuperAdmin) {
       return new Response(JSON.stringify({ error: "Not authorized" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { email, college_id, college_name } = await req.json();
+    const body = await req.json();
+    const { email, college_id, college_name } = body;
 
     if (!email || !college_id) {
       return new Response(JSON.stringify({ error: "email and college_id required" }), {
@@ -88,9 +89,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if this exact email+college already has a pending invite
-    const normalizedEmail = email.toLowerCase().trim();
+    // Verify the college exists
+    const { data: collegeCheck } = await adminClient
+      .from("colleges")
+      .select("id, name")
+      .eq("id", college_id)
+      .maybeSingle();
 
+    if (!collegeCheck) {
+      return new Response(JSON.stringify({ error: "College not found" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const resolvedCollegeName = college_name || collegeCheck.name || "your college";
+
+    // Check if this exact email+college already has an invite
     const { data: existingInvite } = await adminClient
       .from("pending_admin_invites")
       .select("id, status")
@@ -105,10 +121,8 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // If pending/rejected, delete old one and re-create (allows re-sending)
-      if (existingInvite.status === "pending" || existingInvite.status === "rejected") {
-        await adminClient.from("pending_admin_invites").delete().eq("id", existingInvite.id);
-      }
+      // pending or rejected — delete and re-create to allow re-sending
+      await adminClient.from("pending_admin_invites").delete().eq("id", existingInvite.id);
     }
 
     // Check invite limit (max 3 per college)
@@ -145,38 +159,33 @@ Deno.serve(async (req) => {
       throw inviteErr;
     }
 
-    // Send invite via Supabase Auth (creates user if not exists, sends email)
+    // Try to send invite email via Supabase Auth
+    const siteUrl = Deno.env.get("SITE_URL") || "https://saathverse.com";
     const { error: authErr } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
       data: {
         college_id,
         invited_as: "college_admin",
-        college_name: college_name || "your college",
+        college_name: resolvedCollegeName,
       },
-      redirectTo: `${Deno.env.get("SITE_URL") || "https://saathverse.com"}/auth/callback`,
+      redirectTo: `${siteUrl}/auth/callback`,
     });
 
     if (authErr) {
-      // Existing account path: assign role directly
+      // User already exists — assign role directly
       if (authErr.message?.toLowerCase().includes("already")) {
         const { data: usersPage, error: listErr } = await adminClient.auth.admin.listUsers();
         if (listErr) throw listErr;
 
         const found = usersPage?.users?.find(
-          (u) => u.email?.toLowerCase() === normalizedEmail
+          (u: any) => u.email?.toLowerCase() === normalizedEmail
         );
 
         if (found) {
-          const { error: roleErr } = await adminClient
+          const { error: assignErr } = await adminClient
             .from("user_roles")
-            .insert({
-              user_id: found.id,
-              role: "college_admin",
-              college_id,
-            });
+            .insert({ user_id: found.id, role: "college_admin", college_id });
 
-          if (roleErr && roleErr.code !== "23505") {
-            throw roleErr;
-          }
+          if (assignErr && assignErr.code !== "23505") throw assignErr;
 
           await adminClient
             .from("pending_admin_invites")
@@ -195,8 +204,12 @@ Deno.serve(async (req) => {
       }
 
       console.error("Auth invite error:", authErr);
-      return new Response(JSON.stringify({ error: authErr.message || "Failed to send invite" }), {
-        status: 400,
+      // Don't fail — invite is saved in DB, will auto-apply on signup
+      return new Response(JSON.stringify({
+        success: true,
+        message: `Invite saved for ${normalizedEmail}. Email delivery failed but invite will auto-apply on signup.`,
+        email_failed: true,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -207,8 +220,9 @@ Deno.serve(async (req) => {
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (err: any) {
-    console.error("Error:", err);
+    console.error("Unhandled error:", err);
     return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
