@@ -15,6 +15,7 @@ import { branchesData, getSubBranches, degreeLevels } from "@/data/branchesData"
 import ImageCropper from "@/components/ImageCropper";
 
 const STEPS = ["Account", "Profile", "Branch", "Degree", "Finalize"];
+const AUTH_APP_URL = "https://www.saathverse.com";
 
 /* ── Conic spinning ring ── */
 const SpinningGradientRing = ({ size, duration, direction = 1 }: { size: number; duration: number; direction?: number }) => (
@@ -303,11 +304,24 @@ const Signup = () => {
     }
 
     const { data: signupData, error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { college_id: college.id, full_name: fullName } },
+      email,
+      password,
+      options: {
+        data: { college_id: college.id, full_name: fullName },
+        emailRedirectTo: `${AUTH_APP_URL}/auth/callback`,
+      },
     });
 
     if (error) { toast.error(error.message); setLoading(false); return; }
+
+    // If email confirmation is enabled, Supabase won't return an active session yet.
+    if (!signupData.session) {
+      toast.success("Verification email sent. Verify your email, then sign in to continue.");
+      navigate("/login");
+      setLoading(false);
+      return;
+    }
+
     const userId = signupData.user?.id;
     if (!userId) { toast.error("Signup failed"); setLoading(false); return; }
 
@@ -372,7 +386,7 @@ const Signup = () => {
     }
 
     setResettingPassword(true);
-    const appUrl = "https://www.saathverse.com";
+    const appUrl = AUTH_APP_URL;
 
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: `${appUrl.replace(/\/$/, "")}/reset-password`,
