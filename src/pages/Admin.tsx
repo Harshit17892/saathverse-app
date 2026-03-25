@@ -720,32 +720,6 @@ const Admin = () => {
       });
 
       if (fnError) {
-        // Fallback path: create pending invite directly so admin assignment does not get blocked.
-        const { error: fallbackErr } = await supabase
-          .from("pending_admin_invites" as any)
-          .upsert(
-            {
-              email,
-              college_id: activeCollegeId,
-              role: "college_admin",
-              status: "pending",
-              invited_by: user?.id,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "email,college_id" }
-          );
-
-        if (!fallbackErr) {
-          toast({
-            title: "✅ Invite saved",
-            description: "Edge email service is temporarily unavailable, but the invite is saved and will auto-apply when this user signs up.",
-          });
-          setAdminEmail("");
-          fetchCollegeAdmins();
-          setAssigningAdmin(false);
-          return;
-        }
-
         const contextText = (() => {
           try {
             return JSON.stringify((fnError as any)?.context || {});
