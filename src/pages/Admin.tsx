@@ -777,34 +777,68 @@ const Admin = () => {
 
   const handleExportStudents = async () => {
     try {
-      // Fetch profiles for the current college with all details
-      const { data: profiles, error } = await supabase
+      if (!activeCollegeId) {
+        toast({ title: "Select college", description: "Please choose an active college first.", variant: "destructive" });
+        return;
+      }
+
+      // Best-effort sync from profiles so very new signups are included in export.
+      const { data: profiles } = await supabase
         .from("profiles")
-        .select("full_name, branch, year_of_study, is_alumni, company, company_type, skills, bio, gender, created_at, user_id, college_id")
-        .eq("college_id", activeCollegeId!);
+        .select("user_id, college_id, full_name, branch, year_of_study, passout_year, is_alumni, bio, skills, photo_url, main_branch_id, specialization_id")
+        .eq("college_id", activeCollegeId);
+
+      for (const p of profiles || []) {
+        const cy = new Date().getFullYear();
+        let gradYear: number | null = null;
+        if ((p as any).is_alumni && (p as any).passout_year) {
+          gradYear = (p as any).passout_year;
+        } else if ((p as any).year_of_study) {
+          const match = String((p as any).year_of_study).match(/(\d+)/);
+          if (match) {
+            const yr = parseInt(match[1], 10);
+            if (!Number.isNaN(yr)) gradYear = cy + (4 - yr);
+          }
+        }
+
+        await supabase.from("students").upsert({
+          id: (p as any).user_id,
+          name: (p as any).full_name || "Unknown",
+          college_id: (p as any).college_id,
+          main_branch_id: (p as any).main_branch_id || null,
+          specialization_id: (p as any).specialization_id || null,
+          branch_name: (p as any).branch || null,
+          graduation_year: gradYear,
+          bio: (p as any).bio || null,
+          skills: (p as any).skills || [],
+          avatar_url: (p as any).photo_url || null,
+          status: (p as any).is_alumni ? "alumni" : "active",
+        } as any);
+      }
+
+      const { data: studentsRows, error } = await supabase
+        .from("students")
+        .select("id, name, email, branch_name, graduation_year, status, bio, skills, created_at, main_branch:main_branch_id(name), specialization:specialization_id(name)")
+        .eq("college_id", activeCollegeId)
+        .order("created_at", { ascending: false });
       if (error) throw error;
 
-      // Get emails from students table (synced from auth)
-      const { data: studentEmails } = await supabase
-        .from("students")
-        .select("id, email")
-        .or(`college_id.eq.${activeCollegeId},college_id.is.null`);
-      const emailMap = new Map((studentEmails || []).map(s => [s.id, s.email]));
-
-      const rows = (profiles || []).map((p, i) => ({
+      const rows = (studentsRows || []).map((s: any, i: number) => ({
         "S.No": i + 1,
-        "Full Name": p.full_name || "-",
-        "Email": emailMap.get(p.user_id) || "-",
-        "Branch": p.branch || "-",
-        "Year": p.year_of_study || "-",
-        "Alumni": p.is_alumni ? "Yes" : "No",
-        "Company": p.company || "-",
-        "Company Type": p.company_type || "-",
-        "Gender": p.gender || "-",
-        "Skills": (p.skills || []).join(", "),
-        "Bio": p.bio || "-",
-        "Joined At": p.created_at ? new Date(p.created_at).toLocaleString("en-IN") : "-",
+        "Full Name": s.name || "-",
+        "Email": s.email || "-",
+        "Branch": s.specialization?.name || s.main_branch?.name || s.branch_name || "-",
+        "Year": s.graduation_year || "-",
+        "Alumni": s.status === "alumni" ? "Yes" : "No",
+        "Skills": (s.skills || []).join(", "),
+        "Bio": s.bio || "-",
+        "Joined At": s.created_at ? new Date(s.created_at).toLocaleString("en-IN") : "-",
       }));
+
+      if (rows.length === 0) {
+        toast({ title: "No students found", description: "No students available for this college export yet.", variant: "destructive" });
+        return;
+      }
 
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -1392,8 +1426,62 @@ const Admin = () => {
     
     if (successCount > 0) {
       toast({ title: "Sync Complete!", description: `Successfully synced ${successCount} actual users into the branch directory. Refresh to see them.` });
+      await queryClient.invalidateQueries({ queryKey: ["students"] });
     }
   };
+
+  useEffect(() => {
+    if (!activeCollegeId) return;
+
+    const channel = supabase
+      .channel(`admin-profile-student-sync-${activeCollegeId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+          filter: `college_id=eq.${activeCollegeId}`,
+        },
+        async (payload: any) => {
+          const p = payload?.new;
+          if (!p?.user_id || !p?.college_id) return;
+
+          const cy = new Date().getFullYear();
+          let gradYear: number | null = null;
+          if (p.is_alumni && p.passout_year) {
+            gradYear = p.passout_year;
+          } else if (p.year_of_study) {
+            const match = String(p.year_of_study).match(/(\d+)/);
+            if (match) {
+              const yr = parseInt(match[1], 10);
+              if (!Number.isNaN(yr)) gradYear = cy + (4 - yr);
+            }
+          }
+
+          await supabase.from("students").upsert({
+            id: p.user_id,
+            name: p.full_name || "Unknown",
+            college_id: p.college_id,
+            main_branch_id: p.main_branch_id || null,
+            specialization_id: p.specialization_id || null,
+            branch_name: p.branch || null,
+            graduation_year: gradYear,
+            bio: p.bio || null,
+            skills: p.skills || [],
+            avatar_url: p.photo_url || null,
+            status: p.is_alumni ? "alumni" : "active",
+          } as any);
+
+          queryClient.invalidateQueries({ queryKey: ["students"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeCollegeId, queryClient]);
 
   const activeCollege = colleges.find((c: any) => c.id === activeCollegeId);
 
