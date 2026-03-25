@@ -372,8 +372,13 @@ const Signup = () => {
     }
 
     setResettingPassword(true);
+    const appUrl =
+      import.meta.env.VITE_APP_URL ||
+      import.meta.env.VITE_SITE_URL ||
+      "https://saathverse.com";
+
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${window.location.origin}/profile`,
+      redirectTo: `${appUrl.replace(/\/$/, "")}/profile`,
     });
 
     if (error) {
