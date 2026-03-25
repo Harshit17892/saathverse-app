@@ -55,7 +55,8 @@ export const ProtectedRoute = ({
   if (
     (!profile.full_name || profile.full_name.trim() === "") &&
     location.pathname !== "/onboarding" &&
-    location.pathname !== "/admin-setup"
+    location.pathname !== "/admin-setup" &&
+    location.pathname !== "/complete-profile"
   ) {
     return <Navigate to="/onboarding" replace />;
   }
