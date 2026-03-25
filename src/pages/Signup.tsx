@@ -267,6 +267,29 @@ const Signup = () => {
             toast.error(`${domain} is not registered on SaathVerse yet.`);
             return;
           }
+
+          // Create account immediately so verification happens before profile onboarding.
+          const { data: signupData, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { college_id: college.id },
+              emailRedirectTo: `${AUTH_APP_URL}/auth/callback`,
+            },
+          });
+
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+
+          if (!signupData.session) {
+            toast.success("Verification email sent. Verify your email, then sign in to continue.");
+            navigate("/login");
+            return;
+          }
+
+          toast.success("Account created. Continue setting up your profile.");
         } finally {
           setStepChecking(false);
         }
@@ -293,37 +316,48 @@ const Signup = () => {
     if (!fullName.trim()) { toast.error("Full Name is required"); return; }
 
     setLoading(true);
-    const domain = email.split("@")[1];
-    const { data: college } = await supabase
-      .from("colleges").select("id, name").eq("domain", domain).maybeSingle();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const authUser = userData.user;
+
+    if (userError || !authUser?.id) {
+      toast.error("Please verify your email and sign in to continue.");
+      setLoading(false);
+      navigate("/login");
+      return;
+    }
+
+    const authEmail = authUser.email || email;
+    const domain = authEmail.split("@")[1];
+    let college: { id: string; name: string } | null = null;
+
+    if (domain) {
+      const { data: byDomain } = await supabase
+        .from("colleges")
+        .select("id, name")
+        .eq("domain", domain)
+        .maybeSingle();
+      college = byDomain;
+    }
 
     if (!college) {
-      toast.error(`Your college (${domain}) is not registered on SaathVerse yet.`);
+      const metadataCollegeId = (authUser.user_metadata as { college_id?: string } | null)?.college_id;
+      if (metadataCollegeId) {
+        const { data: byId } = await supabase
+          .from("colleges")
+          .select("id, name")
+          .eq("id", metadataCollegeId)
+          .maybeSingle();
+        college = byId;
+      }
+    }
+
+    if (!college) {
+      toast.error("Could not determine your college. Please contact support.");
       setLoading(false);
       return;
     }
 
-    const { data: signupData, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { college_id: college.id, full_name: fullName },
-        emailRedirectTo: `${AUTH_APP_URL}/auth/callback`,
-      },
-    });
-
-    if (error) { toast.error(error.message); setLoading(false); return; }
-
-    // If email confirmation is enabled, Supabase won't return an active session yet.
-    if (!signupData.session) {
-      toast.success("Verification email sent. Verify your email, then sign in to continue.");
-      navigate("/login");
-      setLoading(false);
-      return;
-    }
-
-    const userId = signupData.user?.id;
-    if (!userId) { toast.error("Signup failed"); setLoading(false); return; }
+    const userId = authUser.id;
 
     let photoUrl: string | null = null;
     if (photo) {
@@ -538,12 +572,12 @@ const Signup = () => {
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Confirm Password *</label>
                   <Input type={showPassword ? "text" : "password"} className={inputClass} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter password" />
                 </div>
-                <Button onClick={nextStep}
-                  disabled={stepChecking}
+                  <Button onClick={nextStep}
+                  disabled={stepChecking || loading}
                   className="w-full h-12 text-base font-bold rounded-full glow-accent gap-2 mt-2"
                   style={{ background: "linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)))", color: "hsl(var(--accent-foreground))" }}
                 >
-                  Continue <ArrowRight className="h-4 w-4" />
+                  {stepChecking ? "Creating account..." : "Continue"} <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
             </motion.div>
