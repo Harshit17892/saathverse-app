@@ -80,6 +80,7 @@ const FeaturesSection = () => {
   const { collegeId } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [showAllMobileBranches, setShowAllMobileBranches] = useState(false);
 
   const { data: dbBranches = [] } = useQuery({
     queryKey: ["branches_college", collegeId],
@@ -109,6 +110,11 @@ const FeaturesSection = () => {
     e.preventDefault();
     if (query.trim()) navigate(`/search?q=${encodeURIComponent(query.trim())}`);
   };
+
+  const mobileVisibleCount = 8;
+  const visibleBranches = showAllMobileBranches
+    ? branches
+    : branches.slice(0, mobileVisibleCount);
 
   return (
     <section className="py-16 sm:py-28 relative overflow-hidden">
@@ -185,7 +191,7 @@ const FeaturesSection = () => {
           viewport={{ once: true }}
           className="flex flex-wrap justify-center gap-2.5 sm:gap-4 max-w-5xl mx-auto"
         >
-          {branches.map((branch: any, i: number) => (
+          {visibleBranches.map((branch: any, i: number) => (
             <Link key={branch.slug} to={`/branch/${branch.slug}`}>
               <motion.div
                 initial={{ opacity: 0, scale: 0.85, y: 20 }}
@@ -204,6 +210,18 @@ const FeaturesSection = () => {
             </Link>
           ))}
         </motion.div>
+
+        {branches.length > mobileVisibleCount && (
+          <div className="mt-4 flex justify-center md:hidden">
+            <button
+              type="button"
+              onClick={() => setShowAllMobileBranches((prev) => !prev)}
+              className="glass rounded-full border border-border/40 px-4 py-2 text-xs font-semibold text-foreground"
+            >
+              {showAllMobileBranches ? "Show less" : "+more"}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
