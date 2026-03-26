@@ -73,31 +73,31 @@ const SearchResults = () => {
   const getInitials = (name: string) => name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <Navbar />
-      <div className="pt-24 pb-16 px-4">
+      <div className="pt-20 sm:pt-24 pb-12 sm:pb-16 px-3 sm:px-4">
         <div className="container mx-auto max-w-3xl">
           {/* Back + Search */}
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6 sm:mb-8">
             <button onClick={() => navigate("/")} className="h-10 w-10 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0">
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <form onSubmit={handleSearch} className="flex-1 flex items-center gap-3 rounded-2xl border border-border/40 bg-card/80 backdrop-blur-xl px-5 py-3 shadow-lg focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-              <Search className="h-5 w-5 text-muted-foreground shrink-0" />
+            <form onSubmit={handleSearch} className="w-full min-w-0 flex-1 flex items-center gap-2 sm:gap-3 rounded-2xl border border-border/40 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-lg focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Search students by name, skills, branch..."
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
                 autoFocus
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); }} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-4 w-4" />
+                <button type="button" onClick={() => { setInput(""); }} className="text-muted-foreground hover:text-foreground shrink-0">
+                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
               )}
-              <button type="submit" disabled={input.trim().length < 2} className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40">
+              <button type="submit" disabled={input.trim().length < 2} className="px-3 sm:px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 shrink-0">
                 Search
               </button>
             </form>
