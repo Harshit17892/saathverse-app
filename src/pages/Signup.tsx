@@ -386,7 +386,7 @@ const Signup = () => {
       if (spRow) specializationId = (spRow as any).id;
     }
 
-    await supabase.from("profiles").update({
+    const { error: profileUpdateError } = await supabase.from("profiles").update({
       full_name: fullName.trim(),
       college_id: college.id,
       branch: subBranch || mainBranch || null,
@@ -405,6 +405,12 @@ const Signup = () => {
       gender: gender || null,
       hide_photo: gender === "female" ? hidePhoto : false,
     } as any).eq("user_id", userId);
+
+    if (profileUpdateError) {
+      toast.error(profileUpdateError.message || "Failed to save profile. Please try again.");
+      setLoading(false);
+      return;
+    }
 
     toast.success(`Welcome to SaathVerse! You're joining ${college.name}`);
     navigate("/");
