@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Mail, Lock, Eye, EyeOff, User, BookOpen,
@@ -123,6 +123,7 @@ const BranchDropdown = ({ value, onChange, branches }: {
 const Signup = () => {
   const [step, setStep] = useState(0);
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [isLogin, setIsLogin] = useState(location.pathname === "/login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -181,10 +182,19 @@ const Signup = () => {
 
   // Sync UI mode with current route
   useEffect(() => {
+    const onboardingWizardMode =
+      location.pathname === "/signup" && searchParams.get("onboarding") === "1";
+
+    if (onboardingWizardMode) {
+      setIsLogin(false);
+      setStep((prev) => Math.max(prev, 1));
+      return;
+    }
+
     const nextIsLogin = location.pathname === "/login";
     setIsLogin(nextIsLogin);
     setStep(0);
-  }, [location.pathname]);
+  }, [location.pathname, searchParams]);
 
   // In mobile browsers with "Desktop site" enabled, width breakpoints can switch to desktop UI.
   // Force the mobile auth layout for touch devices to keep form sizing and positioning stable.
@@ -407,7 +417,11 @@ const Signup = () => {
     } as any).eq("user_id", userId);
 
     if (profileUpdateError) {
-      toast.error(profileUpdateError.message || "Failed to save profile. Please try again.");
+      if ((profileUpdateError.message || "").includes("students_email_key")) {
+        toast.error("Your email is already linked to another student record. Please run the duplicate-email cleanup migration.");
+      } else {
+        toast.error(profileUpdateError.message || "Failed to save profile. Please try again.");
+      }
       setLoading(false);
       return;
     }
