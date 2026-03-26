@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { Activity } from "lucide-react";
+import { useEffect, useState } from "react";
 
 // Super admin emails — must match AuthContext
 const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
@@ -17,9 +18,20 @@ export const ProtectedRoute = ({
 }) => {
   const { user, loading, isAdmin, isSuperAdmin, isCoreTeam, profile } = useAuth();
   const location = useLocation();
+  const [profileTimeout, setProfileTimeout] = useState(false);
 
   // Detect super admin directly from email to avoid async timing issues
   const isSA = isSuperAdmin || SUPER_ADMIN_EMAILS.includes(user?.email?.toLowerCase() ?? "");
+
+  useEffect(() => {
+    if (loading || !user || isSA || profile) {
+      setProfileTimeout(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setProfileTimeout(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [loading, user, isSA, profile]);
 
   if (loading) {
     return (
@@ -42,6 +54,15 @@ export const ProtectedRoute = ({
 
   // Wait for profile to load before redirecting
   if (!profile) {
+    if (profileTimeout) {
+      const onboardingPaths = ["/onboarding", "/admin-setup", "/complete-profile"];
+      if (onboardingPaths.includes(location.pathname)) {
+        return <>{children}</>;
+      }
+
+      return <Navigate to="/signup?onboarding=1" replace />;
+    }
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
@@ -58,7 +79,7 @@ export const ProtectedRoute = ({
     location.pathname !== "/admin-setup" &&
     location.pathname !== "/complete-profile"
   ) {
-    return <Navigate to="/onboarding" replace />;
+    return <Navigate to="/signup?onboarding=1" replace />;
   }
 
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
