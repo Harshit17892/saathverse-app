@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { generateGeminiJson } from '../_shared/gemini.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,11 +12,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!GEMINI_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return new Response(JSON.stringify({ success: false, error: 'Missing configuration' }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -40,19 +41,11 @@ Deno.serve(async (req) => {
       .limit(100);
     const existingTitles = (existing || []).map((h: any) => h.title.toLowerCase());
 
-    // Use AI to generate a list of current/upcoming hackathons
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a hackathon discovery assistant. Generate a JSON array of 5-8 real, currently upcoming hackathons happening in India (or globally popular ones). These should be REAL hackathons that are actually happening soon. Return ONLY a valid JSON array, no markdown.
+    const hackathons = await generateGeminiJson<any[]>({
+      apiKey: GEMINI_API_KEY,
+      model: 'gemini-2.0-flash',
+      temperature: 0.7,
+      systemPrompt: `You are a hackathon discovery assistant. Generate a JSON array of 5-8 real, currently upcoming hackathons happening in India (or globally popular ones). These should be REAL hackathons that are actually happening soon. Return ONLY a valid JSON array, no markdown.
 
 Each hackathon object should have:
 {
@@ -70,37 +63,9 @@ Each hackathon object should have:
 IMPORTANT: Do NOT include any of these existing hackathons: ${existingTitles.slice(0, 20).join(', ')}
 
 Return ONLY the JSON array.`
-          },
-          {
-            role: 'user',
-            content: `Find real upcoming hackathons for ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. Focus on popular platforms like Devfolio, Unstop, MLH, etc.`
-          }
-        ],
-        temperature: 0.7,
-      }),
+  ,
+      userPrompt: `Find real upcoming hackathons for ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. Focus on popular platforms like Devfolio, Unstop, MLH, etc.`,
     });
-
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error('AI gateway error:', errText);
-      return new Response(JSON.stringify({ success: false, error: 'AI discovery failed' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const aiData = await aiResponse.json();
-    const content = aiData.choices?.[0]?.message?.content || '';
-
-    let hackathons;
-    try {
-      const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      hackathons = JSON.parse(jsonStr);
-    } catch {
-      console.error('Failed to parse AI response:', content);
-      return new Response(JSON.stringify({ success: false, error: 'Could not parse discovered hackathons' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     if (!Array.isArray(hackathons)) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid response format' }), {
