@@ -53,6 +53,32 @@ export default function PublicProfile() {
   const [connId, setConnId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  const sendConnectionRequest = async () => {
+    if (!user || !userId) return { ok: false, message: "Please log in first" };
+
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc("send_connection_request", { _receiver_id: userId });
+
+    if (!rpcError) {
+      if (rpcResult === "already_exists") return { ok: true, status: "already_exists" as const };
+      if (rpcResult === "sent") return { ok: true, status: "sent" as const };
+    }
+
+    // Fallback path for environments where RPC is missing or blocked.
+    const { error: insertError } = await supabase.from("connections").insert({
+      sender_id: user.id,
+      receiver_id: userId,
+      status: "pending",
+      college_id: collegeId,
+    });
+
+    if (insertError) {
+      return { ok: false, message: insertError.message || rpcError?.message || "Could not send request" };
+    }
+
+    return { ok: true, status: "sent" as const };
+  };
+
   const fetchConnectionStatus = async () => {
     if (!user || !userId || userId === user.id) return;
     const { data } = await supabase
@@ -126,66 +152,76 @@ export default function PublicProfile() {
   const handleConnect = async () => {
     if (!user || !userId) { toast.error("Please log in first"); return; }
     setActionLoading(true);
-    // Use SECURITY DEFINER RPC to bypass RLS entirely
-    const { data: result, error } = await supabase
-      .rpc("send_connection_request", { _receiver_id: userId });
-    if (error) {
-      toast.error(`Failed: ${error.message}`);
-    } else if (result === "already_exists") {
-      toast.info("Connection request already sent");
-    } else if (result === "sent") {
-      toast.success("Connection request sent!");
-    } else {
-      toast.error(result || "Something went wrong");
+    try {
+      const result = await sendConnectionRequest();
+      if (!result.ok) {
+        toast.error(`Failed: ${result.message}`);
+      } else if (result.status === "already_exists") {
+        toast.info("Connection request already sent");
+      } else {
+        toast.success("Connection request sent!");
+      }
+      await fetchConnectionStatus();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send request");
+    } finally {
+      setActionLoading(false);
     }
-    await fetchConnectionStatus();
-    setActionLoading(false);
   };
 
   const handleRemove = async () => {
     if (!connId) return;
     setActionLoading(true);
-    const { error } = await supabase.from("connections").delete().eq("id", connId);
-    if (error) {
-      toast.error("Failed to remove connection");
-    } else {
-      toast("Connection removed");
+    try {
+      const { error } = await supabase.from("connections").delete().eq("id", connId);
+      if (error) {
+        toast.error("Failed to remove connection");
+      } else {
+        toast("Connection removed");
+      }
+      await fetchConnectionStatus();
+    } finally {
+      setActionLoading(false);
     }
-    await fetchConnectionStatus();
-    setActionLoading(false);
   };
 
   const handleBlock = async () => {
     if (!user || !userId) return;
     setActionLoading(true);
-    if (connId) {
-      // Update existing connection to blocked
-      const { error } = await supabase.from("connections").update({ status: "blocked" }).eq("id", connId);
-      if (error) toast.error("Failed to block user");
-      else toast("User blocked");
-    } else {
-      // Create a new blocked connection
-      const { error } = await supabase.from("connections").insert({
-        sender_id: user.id,
-        receiver_id: userId,
-        status: "blocked",
-        college_id: collegeId,
-      });
-      if (error) toast.error("Failed to block user");
-      else toast("User blocked");
+    try {
+      if (connId) {
+        // Update existing connection to blocked
+        const { error } = await supabase.from("connections").update({ status: "blocked" }).eq("id", connId);
+        if (error) toast.error("Failed to block user");
+        else toast("User blocked");
+      } else {
+        // Create a new blocked connection
+        const { error } = await supabase.from("connections").insert({
+          sender_id: user.id,
+          receiver_id: userId,
+          status: "blocked",
+          college_id: collegeId,
+        });
+        if (error) toast.error("Failed to block user");
+        else toast("User blocked");
+      }
+      await fetchConnectionStatus();
+    } finally {
+      setActionLoading(false);
     }
-    await fetchConnectionStatus();
-    setActionLoading(false);
   };
 
   const handleAccept = async () => {
     if (!connId) return;
     setActionLoading(true);
-    const { error } = await supabase.from("connections").update({ status: "accepted" }).eq("id", connId);
-    if (error) toast.error("Failed to accept");
-    else toast.success("Connection accepted!");
-    await fetchConnectionStatus();
-    setActionLoading(false);
+    try {
+      const { error } = await supabase.from("connections").update({ status: "accepted" }).eq("id", connId);
+      if (error) toast.error("Failed to accept");
+      else toast.success("Connection accepted!");
+      await fetchConnectionStatus();
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -328,7 +364,7 @@ export default function PublicProfile() {
         whileTap={{ scale: 0.97 }}
         onClick={handleConnect}
         disabled={actionLoading}
-        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-accent text-primary-foreground font-medium text-sm shadow-lg shadow-primary/30 flex items-center gap-2"
+        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-accent text-primary-foreground font-medium text-sm shadow-lg shadow-primary/30 flex items-center gap-2 relative z-30 pointer-events-auto"
       >
         {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Connect
       </motion.button>
@@ -392,7 +428,7 @@ export default function PublicProfile() {
                       {hackathonInterest && <span className="flex items-center gap-1.5"><Trophy className="h-3.5 w-3.5" /> Hackathon Interested</span>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap relative z-30 pointer-events-auto">
                     {renderActionButtons()}
                     {(profile as any)?._linkedin && (
                       <a href={(profile as any)._linkedin} target="_blank" rel="noopener noreferrer"
