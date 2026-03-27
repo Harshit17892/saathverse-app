@@ -224,7 +224,8 @@ export default function Onboarding() {
 
     await refreshProfile();
     toast.success(isAdminInvite ? "Welcome, Admin! 🛡️" : "Profile set up! Welcome to SaathVerse 🎉");
-    navigate(isAdminInvite ? "/admin" : "/");
+    sessionStorage.setItem("profile_setup_complete", "1");
+    navigate(isAdminInvite ? "/admin" : "/discover");
     setSubmitting(false);
   };
 
