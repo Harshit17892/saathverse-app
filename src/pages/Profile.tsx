@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, MapPin, Calendar, Github, Linkedin, Code2,
-  BookOpen, Users, Edit3, ExternalLink, Plus, Trash2, X, Save, Lock, KeyRound
+  BookOpen, Users, Edit3, ExternalLink, Plus, Trash2, X, Save, Lock, KeyRound, GraduationCap, Trophy
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,6 +62,9 @@ const Profile = () => {
   const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
   const branch = profile?.branch || "Not set";
   const yearOfStudy = profile?.year_of_study || "";
+  const rawDegreeLevel = (profile as any)?.degree_level || "";
+  const degreeLevel = rawDegreeLevel || (["UG", "PG", "PHD"].includes(String(yearOfStudy).toUpperCase()) ? yearOfStudy : "");
+  const hackathonInterest = !!(profile as any)?.hackathon_interest;
   const bio = profile?.bio || "No bio yet";
   const skills: string[] = profile?.skills || [];
   const photoUrl = profile?.photo_url || null;
@@ -219,7 +222,9 @@ const Profile = () => {
 
   const stats = [
     { label: "Branch", value: branch, icon: BookOpen },
+    { label: "Degree", value: degreeLevel || "—", icon: GraduationCap },
     { label: "Year", value: yearOfStudy || "—", icon: Calendar },
+    { label: "Hackathons", value: hackathonInterest ? "Interested" : "Not set", icon: Trophy },
     { label: "Skills", value: String(skills.length), icon: Code2 },
     { label: "College", value: collegeName || "—", icon: Users },
   ];
@@ -271,6 +276,8 @@ const Profile = () => {
                       {collegeName && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {collegeName}</span>}
                       {joinDate && <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Joined {joinDate}</span>}
                       <span className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> {branch}</span>
+                      {degreeLevel && <span className="flex items-center gap-1.5"><GraduationCap className="h-3.5 w-3.5" /> {degreeLevel}</span>}
+                      {hackathonInterest && <span className="flex items-center gap-1.5"><Trophy className="h-3.5 w-3.5" /> Hackathon Interested</span>}
                     </div>
 
                     {/* Social Links */}
@@ -331,7 +338,7 @@ const Profile = () => {
           </motion.div>
 
           {/* Stats Row */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mt-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3 mt-8">
             {stats.map((stat) => (
               <motion.div key={stat.label} whileHover={{ y: -3, scale: 1.02 }} className="glass rounded-xl p-3 sm:p-4 text-center group cursor-pointer overflow-hidden">
                 <stat.icon className="h-5 w-5 text-primary mx-auto mb-1.5 sm:mb-2 group-hover:scale-110 transition-transform" />
