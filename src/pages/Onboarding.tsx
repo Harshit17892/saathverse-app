@@ -484,6 +484,6 @@ export default function Onboarding() {
           aspectRatio={1}
         />
       )}
-    </div>
+    </d=iv>
   );
 }
