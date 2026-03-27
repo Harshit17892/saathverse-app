@@ -20,6 +20,12 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (user && sessionStorage.getItem("profile_setup_complete") === "1") {
+      navigate("/discover", { replace: true });
+    }
+  }, [user, navigate]);
+
   const [fullName, setFullName] = useState("");
   const [mainBranch, setMainBranch] = useState("");
   const [subBranch, setSubBranch] = useState("");
@@ -229,6 +235,7 @@ export default function Onboarding() {
     await refreshProfile();
     toast.success(isAdminInvite ? "Welcome, Admin! 🛡️" : "Profile set up! Welcome to SaathVerse 🎉");
     sessionStorage.setItem("profile_setup_complete", "1");
+    localStorage.setItem("profile_setup_complete", "1");
     navigate(isAdminInvite ? "/admin" : "/discover");
     setSubmitting(false);
   };
