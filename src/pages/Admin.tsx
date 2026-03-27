@@ -1186,6 +1186,18 @@ const Admin = () => {
         await upsertCollege.mutateAsync({ ...base, name: form.name || "", domain: (form.domain || "").replace(/^@+/, ""), city: form.city || null, state: form.state || null, logo_url: form.logo_url || null });
       } else if (section === "students") {
         await upsertStudent.mutateAsync({ ...base, name: form.name || "", email: form.email || null, branch_id: resolveLegacyBranchId(form.branch_id), graduation_year: form.graduation_year ? Number(form.graduation_year) : null, bio: form.bio || null, skills: form.skills ? (typeof form.skills === "string" ? form.skills.split(",").map((s: string) => s.trim()) : form.skills) : [], status: form.status || "active", is_topper: form.is_topper === "true" || form.is_topper === true, xp_points: form.xp_points ? Number(form.xp_points) : 0, social_links: { company: form.company || null, company_type: form.company_type || null } });
+
+        const studentProfileId = (editId || (form as any)?.id || "").toString();
+        if (studentProfileId) {
+          await supabase
+            .from("profiles")
+            .update({
+              company: form.company || null,
+              company_type: form.company_type || null,
+              is_alumni: (form.status || "").toLowerCase() === "alumni",
+            } as any)
+            .eq("user_id", studentProfileId);
+        }
       } else if (section === "events") {
         await upsertEvent.mutateAsync({
           ...base,
