@@ -65,6 +65,7 @@ const formatDeadline = (value: string | null) => {
 
 const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLabel?: string }) => {
   const { collegeId, user, profile } = useAuth();
+  const hasShownLoadErrorRef = useRef(false);
 
   const [tab, setTab] = useState<"opportunities" | "matchmaker">("opportunities");
   const [showComposer, setShowComposer] = useState(false);
@@ -146,14 +147,22 @@ const LivePulse = ({ branchSlug, branchLabel }: { branchSlug?: string; branchLab
 
     const [{ data: oppRows, error: oppErr }, { data: reqRows, error: reqErr }] = await Promise.all([oppQuery, reqQuery]);
 
+    const shouldSuppressLoadToast = (err: any) => err?.code === "42P01" || err?.code === "42501";
+
     if (oppErr) {
       console.error("[ActionBoard] opportunities fetch error:", oppErr);
-      toast.error("Could not load opportunities");
+      if (!shouldSuppressLoadToast(oppErr) && !hasShownLoadErrorRef.current) {
+        toast.error("Could not load opportunities");
+        hasShownLoadErrorRef.current = true;
+      }
     }
 
     if (reqErr) {
       console.error("[ActionBoard] requests fetch error:", reqErr);
-      toast.error("Could not load match requests");
+      if (!shouldSuppressLoadToast(reqErr) && !hasShownLoadErrorRef.current) {
+        toast.error("Could not load match requests");
+        hasShownLoadErrorRef.current = true;
+      }
     }
 
     setOpportunities(
