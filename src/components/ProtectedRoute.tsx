@@ -4,6 +4,10 @@ import { motion } from "framer-motion";
 import { Activity } from "lucide-react";
 import { useEffect, useState } from "react";
 
+const isProfileSetupComplete = () =>
+  sessionStorage.getItem("profile_setup_complete") === "1" ||
+  localStorage.getItem("profile_setup_complete") === "1";
+
 // Super admin emails — must match AuthContext
 const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
 
@@ -20,7 +24,7 @@ export const ProtectedRoute = ({
   const location = useLocation();
   const [profileTimeout, setProfileTimeout] = useState(false);
   const [allowWithoutProfile, setAllowWithoutProfile] = useState(
-    () => sessionStorage.getItem("profile_setup_complete") === "1"
+    () => isProfileSetupComplete()
   );
 
   // Detect super admin directly from email to avoid async timing issues
@@ -39,11 +43,12 @@ export const ProtectedRoute = ({
   useEffect(() => {
     if (profile?.full_name && String(profile.full_name).trim() !== "") {
       sessionStorage.removeItem("profile_setup_complete");
+      localStorage.removeItem("profile_setup_complete");
       setAllowWithoutProfile(false);
       return;
     }
 
-    setAllowWithoutProfile(sessionStorage.getItem("profile_setup_complete") === "1");
+    setAllowWithoutProfile(isProfileSetupComplete());
   }, [profile]);
 
   if (loading) {
