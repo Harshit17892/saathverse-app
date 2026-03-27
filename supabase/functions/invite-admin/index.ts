@@ -43,10 +43,31 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const jwt = authHeader.replace("Bearer ", "").trim();
 
-    const {
-      data: { user: callerUser },
-      error: userErr,
-    } = await adminClient.auth.getUser(jwt);
+    let callerUser: any = null;
+    let userErr: any = null;
+
+    // Primary path: validate JWT directly via admin client.
+    {
+      const { data, error } = await adminClient.auth.getUser(jwt);
+      callerUser = data?.user ?? null;
+      userErr = error;
+    }
+
+    // Fallback path: some environments pass tokens in ways that fail direct getUser(jwt).
+    if (!callerUser) {
+      const anonOrServiceKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
+      const authClient = createClient(supabaseUrl, anonOrServiceKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+          },
+        },
+      });
+
+      const { data, error } = await authClient.auth.getUser();
+      callerUser = data?.user ?? null;
+      userErr = error || userErr;
+    }
 
     if (userErr || !callerUser) {
       console.error("Caller auth failed:", userErr);
