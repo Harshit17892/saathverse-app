@@ -93,18 +93,34 @@ const FeaturesSection = () => {
     },
   });
 
-  const branches = dbBranches.length > 2
-    ? (() => {
-        const mapped = Array.from(new Map(dbBranches.map((b: any) => [b.slug, {
-          name: b.name,
-          slug: b.slug,
-          icon: getBranchIcon({ name: b.name, slug: b.slug, icon: b.icon }),
-        }])).values());
-        const engIdx = mapped.findIndex((b: any) => b.slug === "engineering-technology");
-        if (engIdx > 0) { const [eng] = mapped.splice(engIdx, 1); mapped.unshift(eng); }
-        return mapped;
-      })()
-    : fallbackBranches;
+  const branches = (() => {
+    const dbByNormalizedSlug = new Map<string, { name: string; slug: string; icon: string }>();
+
+    for (const b of dbBranches as any[]) {
+      const normalizedSlug = String(b.slug || "").replace(/-[a-f0-9]{8}$/i, "");
+      if (!normalizedSlug) continue;
+      dbByNormalizedSlug.set(normalizedSlug, {
+        name: b.name,
+        slug: normalizedSlug,
+        icon: getBranchIcon({ name: b.name, slug: normalizedSlug, icon: b.icon }),
+      });
+    }
+
+    const merged = fallbackBranches.map((f) => dbByNormalizedSlug.get(f.slug) || f);
+    const known = new Set(merged.map((b) => b.slug));
+
+    for (const [slug, branch] of dbByNormalizedSlug.entries()) {
+      if (!known.has(slug)) merged.push(branch);
+    }
+
+    const engIdx = merged.findIndex((b) => b.slug === "engineering-technology");
+    if (engIdx > 0) {
+      const [eng] = merged.splice(engIdx, 1);
+      merged.unshift(eng);
+    }
+
+    return merged;
+  })();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
