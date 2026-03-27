@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { branchesData, getSubBranches, degreeLevels } from "@/data/branchesData";
 import ImageCropper from "@/components/ImageCropper";
 
@@ -131,6 +132,7 @@ const Signup = () => {
   const [stepChecking, setStepChecking] = useState(false);
   const [forceMobileLayout, setForceMobileLayout] = useState(false);
   const navigate = useNavigate();
+  const { user: authUser, refreshProfile } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -185,6 +187,12 @@ const Signup = () => {
     const onboardingWizardMode =
       location.pathname === "/signup" && searchParams.get("onboarding") === "1";
 
+    // Escape hatch: once setup is complete, never reopen onboarding wizard.
+    if (onboardingWizardMode && authUser && sessionStorage.getItem("profile_setup_complete") === "1") {
+      navigate("/discover", { replace: true });
+      return;
+    }
+
     if (onboardingWizardMode) {
       setIsLogin(false);
       setStep((prev) => Math.max(prev, 1));
@@ -194,7 +202,7 @@ const Signup = () => {
     const nextIsLogin = location.pathname === "/login";
     setIsLogin(nextIsLogin);
     setStep(0);
-  }, [location.pathname, searchParams]);
+  }, [location.pathname, searchParams, authUser, navigate]);
 
   // In mobile browsers with "Desktop site" enabled, width breakpoints can switch to desktop UI.
   // Force the mobile auth layout for touch devices to keep form sizing and positioning stable.
@@ -396,25 +404,28 @@ const Signup = () => {
       if (spRow) specializationId = (spRow as any).id;
     }
 
-    const { error: profileUpdateError } = await supabase.from("profiles").update({
-      full_name: fullName.trim(),
-      college_id: college.id,
-      branch: subBranch || mainBranch || null,
-      main_branch_id: mainBranchId,
-      specialization_id: specializationId,
-      degree_level: degreeLevel || null,
-      year_of_study: isAlumni ? "Alumni" : yearOfStudy || null,
-      passout_year: isAlumni && passoutYear ? passoutYear : null,
-      is_alumni: isAlumni,
-      company: company || null,
-      company_type: companyType || null,
-      skills,
-      bio: bio || null,
-      photo_url: photoUrl,
-      hackathon_interest: hackathonInterest,
-      gender: gender || null,
-      hide_photo: gender === "female" ? hidePhoto : false,
-    } as any).eq("user_id", userId);
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .upsert({
+        user_id: userId,
+        full_name: fullName.trim(),
+        college_id: college.id,
+        branch: subBranch || mainBranch || null,
+        main_branch_id: mainBranchId,
+        specialization_id: specializationId,
+        degree_level: degreeLevel || null,
+        year_of_study: isAlumni ? "Alumni" : yearOfStudy || null,
+        passout_year: isAlumni && passoutYear ? passoutYear : null,
+        is_alumni: isAlumni,
+        company: company || null,
+        company_type: companyType || null,
+        skills,
+        bio: bio || null,
+        photo_url: photoUrl,
+        hackathon_interest: hackathonInterest,
+        gender: gender || null,
+        hide_photo: gender === "female" ? hidePhoto : false,
+      } as any, { onConflict: "user_id" });
 
     if (profileUpdateError) {
       if ((profileUpdateError.message || "").includes("students_email_key")) {
@@ -427,7 +438,10 @@ const Signup = () => {
     }
 
     toast.success(`Welcome to SaathVerse! You're joining ${college.name}`);
-    navigate("/");
+    sessionStorage.setItem("profile_setup_complete", "1");
+    localStorage.setItem("profile_setup_complete", "1");
+    await refreshProfile();
+    navigate("/discover", { replace: true });
     setLoading(false);
   };
 
