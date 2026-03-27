@@ -271,7 +271,18 @@ const TopStudentCarousel = ({ students }: { students: TopStudent[] }) => {
   );
 };
 
-type StudentDisplay = { id?: string; name: string; dept: string; year: string; title: string; skills: string[]; avatar_url?: string | null; isBot?: boolean };
+type StudentDisplay = {
+  id?: string;
+  name: string;
+  dept: string;
+  year: string;
+  title: string;
+  skills: string[];
+  avatar_url?: string | null;
+  isBot?: boolean;
+  degreeLevel?: string;
+  hackathonInterest?: boolean;
+};
 
 const normalizeBranchText = (value?: string | null) =>
   (value || "")
@@ -406,6 +417,20 @@ const StudentCard = ({ student, i, onConnect, isSent }: { student: StudentDispla
             <span className="shrink-0">{student.year}</span>
           </div>
           <p className="text-xs text-muted-foreground mb-2 hidden sm:block">{student.title}</p>
+          {(student.degreeLevel || student.hackathonInterest) && (
+            <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2">
+              {student.degreeLevel && (
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/15 text-primary border border-primary/20">
+                  {student.degreeLevel}
+                </span>
+              )}
+              {student.hackathonInterest && (
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent/15 text-accent border border-accent/20">
+                  Hackathon Interested
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-1 sm:gap-1.5">
             {student.skills.slice(0, 3).map(sk => (
               <span key={sk} className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-semibold bg-accent/15 text-accent border border-accent/20">
@@ -571,17 +596,57 @@ const BranchDetail = () => {
         ...fallbackStudents.filter((s: any) => !(data || []).some((d: any) => d.id === s.id)),
       ];
 
+      const profileByUserId = new Map<string, { degree_level?: string | null; year_of_study?: string | null; hackathon_interest?: boolean | null }>();
+      const userIds = Array.from(
+        new Set(
+          mergedStudents
+            .map((s: any) => (s?.id ? String(s.id) : ""))
+            .filter(Boolean)
+        )
+      );
+
+      if (userIds.length > 0) {
+        let profilesQuery = supabase
+          .from("profiles")
+          .select("user_id, degree_level, year_of_study, hackathon_interest")
+          .in("user_id", userIds);
+
+        if (collegeId) {
+          profilesQuery = profilesQuery.eq("college_id", collegeId);
+        }
+
+        const { data: profileRows, error: profileErr } = await profilesQuery;
+        if (!profileErr) {
+          (profileRows || []).forEach((p: any) => {
+            profileByUserId.set(String(p.user_id), {
+              degree_level: p.degree_level,
+              year_of_study: p.year_of_study,
+              hackathon_interest: p.hackathon_interest,
+            });
+          });
+        }
+      }
+
       if (mergedStudents.length > 0) {
-        setDbStudents(mergedStudents.map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          dept: s.main_branch?.name || s.specialization?.name || s.branch_name || s.branches?.name || meta.label,
-          year: s.graduation_year ? String(s.graduation_year) : "—",
-          title: s.bio || "Student",
-          skills: s.skills || [],
-          avatar_url: s.avatar_url,
-          isBot: s.is_bot ?? false,
-        })));
+        setDbStudents(mergedStudents.map((s: any) => {
+          const profileMeta = profileByUserId.get(String(s.id));
+          const fallbackDegree = ["UG", "PG", "PHD"].includes(String(profileMeta?.year_of_study || "").toUpperCase())
+            ? String(profileMeta?.year_of_study)
+            : null;
+
+          return {
+            id: s.id,
+            name: s.name,
+            dept: s.main_branch?.name || s.specialization?.name || s.branch_name || s.branches?.name || meta.label,
+            year: s.graduation_year ? String(s.graduation_year) : "—",
+            title: s.bio || "Student",
+            skills: s.skills || [],
+            avatar_url: s.avatar_url,
+            isBot: s.is_bot ?? false,
+            degreeLevel: profileMeta?.degree_level || fallbackDegree || undefined,
+            hackathonInterest: !!profileMeta?.hackathon_interest,
+          };
+        }));
       } else {
         setDbStudents([]);
       }
