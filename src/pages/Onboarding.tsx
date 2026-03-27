@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Sparkles, Camera, X, Briefcase, ChevronDown, Shield } from "lucide-react";
+import { GraduationCap, Sparkles, Camera, X, Briefcase, ChevronDown, Shield, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ export default function Onboarding() {
   const [companyType, setCompanyType] = useState<"tech" | "non-tech" | "">("");
   const [skillInput, setSkillInput] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
+  const [hackathonInterest, setHackathonInterest] = useState(false);
   const [bio, setBio] = useState("");
   const [passoutYear, setPassoutYear] = useState<number | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -189,6 +190,7 @@ export default function Onboarding() {
         is_alumni: isAdminInvite ? false : isAlumni,
         company: isAdminInvite ? null : (company || null),
         company_type: isAdminInvite ? null : (companyType || null),
+        hackathon_interest: isAdminInvite ? null : hackathonInterest,
         skills: isAdminInvite ? [] : skills,
         bio: isAdminInvite ? (designation || null) : (bio || null),
         photo_url: photoUrl,
@@ -448,6 +450,20 @@ export default function Onboarding() {
                   </div>
                 )}
               </div>
+
+              {/* Hackathon Interest Toggle */}
+              <motion.div onClick={() => setHackathonInterest(!hackathonInterest)} whileTap={{ scale: 0.98 }}
+                className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${hackathonInterest ? "bg-accent/10 border-accent/40" : "bg-secondary/30 border-border/30 hover:border-border/60"}`}>
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${hackathonInterest ? "bg-accent/20" : "bg-secondary/60"}`}>
+                  <Trophy className={`h-5 w-5 ${hackathonInterest ? "text-accent" : "text-muted-foreground"}`} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">Interested in Hackathons</p>
+                </div>
+                <motion.div animate={{ backgroundColor: hackathonInterest ? "hsl(var(--accent))" : "hsl(var(--muted))" }} className="h-6 w-11 rounded-full p-0.5">
+                  <motion.div animate={{ x: hackathonInterest ? 20 : 0 }} className="h-5 w-5 rounded-full bg-background shadow-sm" />
+                </motion.div>
+              </motion.div>
             </>
           )}
 
