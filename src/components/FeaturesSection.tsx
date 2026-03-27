@@ -4,7 +4,7 @@ import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const fallbackBranches = [
   { name: "Diploma", slug: "diploma", icon: "📐" },
@@ -81,6 +81,15 @@ const FeaturesSection = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [showAllMobileBranches, setShowAllMobileBranches] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia("(min-width: 768px)").matches);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    setIsDesktop(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
 
   const { data: dbBranches = [] } = useQuery({
     queryKey: ["branches_college", collegeId],
@@ -128,7 +137,9 @@ const FeaturesSection = () => {
   };
 
   const mobileVisibleCount = 8;
-  const visibleBranches = showAllMobileBranches
+  const visibleBranches = isDesktop
+    ? branches
+    : showAllMobileBranches
     ? branches
     : branches.slice(0, mobileVisibleCount);
 
