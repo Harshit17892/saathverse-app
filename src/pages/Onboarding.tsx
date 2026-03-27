@@ -168,21 +168,25 @@ export default function Onboarding() {
       if (spRow) specializationId = (spRow as any).id;
     }
 
-    const { error } = await supabase.from("profiles").update({
-      full_name: fullName.trim(),
-      branch: isAdminInvite ? (designation || "Admin") : (subBranch || mainBranch || null),
-      main_branch_id: isAdminInvite ? null : mainBranchId,
-      specialization_id: isAdminInvite ? null : specializationId,
-      degree_level: isAdminInvite ? null : (degreeLevel || null),
-      year_of_study: isAdminInvite ? null : (isAlumni ? "Alumni" : yearOfStudy || null),
-      passout_year: isAdminInvite ? null : (isAlumni && passoutYear ? passoutYear : null),
-      is_alumni: isAdminInvite ? false : isAlumni,
-      company: isAdminInvite ? null : (company || null),
-      company_type: isAdminInvite ? null : (companyType || null),
-      skills: isAdminInvite ? [] : skills,
-      bio: isAdminInvite ? (designation || null) : (bio || null),
-      photo_url: photoUrl,
-    } as any).eq("user_id", user.id);
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({
+        user_id: user.id,
+        college_id: college?.id || null,
+        full_name: fullName.trim(),
+        branch: isAdminInvite ? (designation || "Admin") : (subBranch || mainBranch || null),
+        main_branch_id: isAdminInvite ? null : mainBranchId,
+        specialization_id: isAdminInvite ? null : specializationId,
+        degree_level: isAdminInvite ? null : (degreeLevel || null),
+        year_of_study: isAdminInvite ? null : (isAlumni ? "Alumni" : yearOfStudy || null),
+        passout_year: isAdminInvite ? null : (isAlumni && passoutYear ? passoutYear : null),
+        is_alumni: isAdminInvite ? false : isAlumni,
+        company: isAdminInvite ? null : (company || null),
+        company_type: isAdminInvite ? null : (companyType || null),
+        skills: isAdminInvite ? [] : skills,
+        bio: isAdminInvite ? (designation || null) : (bio || null),
+        photo_url: photoUrl,
+      } as any, { onConflict: "user_id" });
 
     if (error) { toast.error(error.message); setSubmitting(false); return; }
 
