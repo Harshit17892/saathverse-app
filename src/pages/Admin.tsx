@@ -744,7 +744,10 @@ const Admin = () => {
       }
 
       // Call the invite-admin edge function
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
       const { data: fnData, error: fnError } = await supabase.functions.invoke("invite-admin", {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: { email, college_id: activeCollegeId, college_name: collegeName },
       });
 
@@ -759,9 +762,12 @@ const Admin = () => {
         const detail =
           (fnError as any)?.context?.error ||
           (fnError as any)?.context?.message ||
+          (fnError as any)?.error ||
           (fnError as any)?.message ||
           "Edge function request failed";
-        throw new Error(contextText ? `${detail} | ${contextText}` : detail);
+        const status = (fnError as any)?.context?.status || (fnError as any)?.status;
+        const withStatus = status ? `${detail} (status: ${status})` : detail;
+        throw new Error(contextText ? `${withStatus} | ${contextText}` : withStatus);
       }
 
       // The edge function returns { error: "..." } on validation failures
