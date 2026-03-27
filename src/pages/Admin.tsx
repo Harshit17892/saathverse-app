@@ -752,6 +752,21 @@ const Admin = () => {
       });
 
       if (fnError) {
+        let responseDetail = "";
+        const responseContext = (fnError as any)?.context;
+        if (responseContext) {
+          try {
+            const parsed = await responseContext.clone().json();
+            responseDetail = parsed?.error || parsed?.message || JSON.stringify(parsed);
+          } catch {
+            try {
+              responseDetail = await responseContext.clone().text();
+            } catch {
+              responseDetail = "";
+            }
+          }
+        }
+
         const contextText = (() => {
           try {
             return JSON.stringify((fnError as any)?.context || {});
@@ -766,7 +781,8 @@ const Admin = () => {
           (fnError as any)?.message ||
           "Edge function request failed";
         const status = (fnError as any)?.context?.status || (fnError as any)?.status;
-        const withStatus = status ? `${detail} (status: ${status})` : detail;
+        const combinedDetail = responseDetail ? `${detail} | ${responseDetail}` : detail;
+        const withStatus = status ? `${combinedDetail} (status: ${status})` : combinedDetail;
         throw new Error(contextText ? `${withStatus} | ${contextText}` : withStatus);
       }
 
