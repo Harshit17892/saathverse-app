@@ -479,7 +479,7 @@ export default function Onboarding() {
       {cropSrc && (
         <ImageCropper
           imageSrc={cropSrc}
-          onCropComplete={handleCropComplete}
+          onCropComplete={handleCropComplet}
           onCancel={() => setCropSrc(null)}
           aspectRatio={1}
         />
