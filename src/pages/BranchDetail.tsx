@@ -352,7 +352,7 @@ const inferBranchSlugsFromText = (value?: string | null): string[] => {
     const hasContainMatch = normalizedKeys.some((key) => {
       if (!key) return false;
       if (key.length < 6) return false;
-      return normalized.includes(key) || (normalized.length >= 5 && key.includes(normalized));
+      return normalized.includes(key);
     });
     if (hasContainMatch) matches.add(mainSlug);
   }
@@ -550,13 +550,15 @@ const BranchDetail = () => {
           .order("created_at", { ascending: false });
 
         fallbackStudents = (fallbackData || []).filter((s: any) => {
-          const possibleSlugs = new Set<string>();
-
+          // Trust explicit main branch linkage first to avoid cross-branch drift
+          // (for example Design specializations being inferred as Engineering).
           if (s.main_branch?.slug) {
-            possibleSlugs.add(String(s.main_branch.slug));
+            return String(s.main_branch.slug).replace(/-[a-f0-9]{8}$/i, "") === normalizedBranchSlug;
           }
 
-          [s.specialization?.name, s.branch_name, s.branches?.name, s.main_branch?.name].forEach((text) => {
+          const possibleSlugs = new Set<string>();
+
+          [s.specialization?.name, s.branch_name, s.branches?.name].forEach((text) => {
             inferBranchSlugsFromText(text).forEach((slug) => possibleSlugs.add(slug));
           });
 
@@ -725,10 +727,10 @@ const BranchDetail = () => {
             </motion.div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <SkillGalaxy branchSlug={normalizedBranchSlug} />
+                <SkillGalaxy />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-                <LivePulse branchSlug={normalizedBranchSlug} branchLabel={meta.label} />
+                <LivePulse />
               </motion.div>
             </div>
           </div>
