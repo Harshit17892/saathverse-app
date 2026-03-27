@@ -7,11 +7,23 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.invite-admin]
-verify_jwt = false
+verify_jwt = true
 
 [functions.reset-user-password]
 verify_jwt = false
 
+[functions.delete-user]
+verify_jwt = false
+
 
 [functions.score-startup-idea]
+verify_jwt = false
+
+[functions.refresh-research-trends]
+verify_jwt = false
+
+[functions.suggest-teammates]
+verify_jwt = false
+
+[functions.scrape-hackathon]
 verify_jwt = false
