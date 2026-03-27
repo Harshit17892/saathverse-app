@@ -19,6 +19,9 @@ export const ProtectedRoute = ({
   const { user, loading, isAdmin, isSuperAdmin, isCoreTeam, profile } = useAuth();
   const location = useLocation();
   const [profileTimeout, setProfileTimeout] = useState(false);
+  const [allowWithoutProfile, setAllowWithoutProfile] = useState(
+    () => sessionStorage.getItem("profile_setup_complete") === "1"
+  );
 
   // Detect super admin directly from email to avoid async timing issues
   const isSA = isSuperAdmin || SUPER_ADMIN_EMAILS.includes(user?.email?.toLowerCase() ?? "");
@@ -32,6 +35,16 @@ export const ProtectedRoute = ({
     const timer = window.setTimeout(() => setProfileTimeout(true), 4000);
     return () => window.clearTimeout(timer);
   }, [loading, user, isSA, profile]);
+
+  useEffect(() => {
+    if (profile?.full_name && String(profile.full_name).trim() !== "") {
+      sessionStorage.removeItem("profile_setup_complete");
+      setAllowWithoutProfile(false);
+      return;
+    }
+
+    setAllowWithoutProfile(sessionStorage.getItem("profile_setup_complete") === "1");
+  }, [profile]);
 
   if (loading) {
     return (
@@ -54,6 +67,10 @@ export const ProtectedRoute = ({
 
   // Wait for profile to load before redirecting
   if (!profile) {
+    if (allowWithoutProfile) {
+      return <>{children}</>;
+    }
+
     if (profileTimeout) {
       const onboardingPaths = ["/onboarding", "/admin-setup", "/complete-profile"];
       if (onboardingPaths.includes(location.pathname)) {
