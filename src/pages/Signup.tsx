@@ -302,9 +302,18 @@ const Signup = () => {
           }
 
           if (!signupData.session) {
-            toast.success("Verification email sent. Verify your email, then sign in to continue.");
-            navigate("/login");
-            return;
+            // When email verification is OFF, some setups still return null session from signUp.
+            // Try immediate sign-in so user can continue onboarding without bouncing to login.
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+
+            if (signInError || !signInData.session) {
+              toast.success("Verification email sent. Verify your email, then sign in to continue.");
+              navigate("/login", { replace: true });
+              return;
+            }
           }
 
           toast.success("Account created. Continue setting up your profile.");
