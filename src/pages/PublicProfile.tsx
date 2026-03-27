@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   User, MapPin, Calendar, Github, Linkedin, Code2,
   BookOpen, ArrowLeft, MessageCircle, CheckCircle2, UserPlus,
-  Shield, UserX, Clock, Loader2
+  Shield, UserX, Clock, Loader2, GraduationCap, Trophy
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,7 +98,7 @@ export default function PublicProfile() {
         }
         const { data: prof } = await supabase
           .from("profiles")
-          .select("branch, bio, photo_url, skills, linkedin_url, github_url")
+          .select("branch, bio, photo_url, skills, linkedin_url, github_url, degree_level, year_of_study, hackathon_interest")
           .eq("user_id", userId)
           .maybeSingle();
 
@@ -111,6 +111,9 @@ export default function PublicProfile() {
             _branch_name: prof.branch,
             _linkedin: prof.linkedin_url,
             _github: prof.github_url,
+            _degree_level: (prof as any).degree_level,
+            _year_of_study: (prof as any).year_of_study,
+            _hackathon_interest: (prof as any).hackathon_interest,
           }));
         }
       }
@@ -211,6 +214,8 @@ export default function PublicProfile() {
 
   const initials = profile.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   const branchName = (profile.branches as any)?.name || (profile as any)?._branch_name || "Student";
+  const degreeLevel = (profile as any)?._degree_level || (["UG", "PG", "PHD"].includes(String((profile as any)?._year_of_study || "").toUpperCase()) ? (profile as any)?._year_of_study : "");
+  const hackathonInterest = !!(profile as any)?._hackathon_interest;
   const isOwnProfile = user?.id === userId;
 
   const renderActionButtons = () => {
@@ -374,11 +379,17 @@ export default function PublicProfile() {
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                   <div>
                     <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">{profile.name}</h1>
-                    <p className="text-muted-foreground mt-1">{branchName} • {profile.status === "alumni" ? "Alumni" : "Student"}</p>
+                    <p className="text-muted-foreground mt-1">
+                      {branchName}
+                      {degreeLevel ? ` • ${degreeLevel}` : ""}
+                      {` • ${profile.status === "alumni" ? "Alumni" : "Student"}`}
+                    </p>
                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3 text-sm text-muted-foreground">
                       {collegeName && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {collegeName}</span>}
                       {profile.graduation_year && <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Class of {profile.graduation_year}</span>}
                       <span className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> {branchName}</span>
+                      {degreeLevel && <span className="flex items-center gap-1.5"><GraduationCap className="h-3.5 w-3.5" /> {degreeLevel}</span>}
+                      {hackathonInterest && <span className="flex items-center gap-1.5"><Trophy className="h-3.5 w-3.5" /> Hackathon Interested</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
