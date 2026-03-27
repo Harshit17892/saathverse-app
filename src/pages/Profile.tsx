@@ -138,15 +138,70 @@ const Profile = () => {
   const saveProfile = async () => {
     if (!user) return;
     setSavingProfile(true);
+    const normalizedBranch = editForm.branch.trim() || null;
+    const normalizedYear = editForm.year_of_study || null;
+    const normalizedSkills = editForm.skills ? editForm.skills.split(",").map(s => s.trim()).filter(Boolean) : [];
+
     const { error } = await supabase.from("profiles").update({
       full_name: editForm.full_name.trim() || null,
       bio: editForm.bio.trim() || null,
-      branch: editForm.branch.trim() || null,
-      year_of_study: editForm.year_of_study || null,
-      skills: editForm.skills ? editForm.skills.split(",").map(s => s.trim()).filter(Boolean) : [],
+      branch: normalizedBranch,
+      year_of_study: normalizedYear,
+      skills: normalizedSkills,
       hide_photo: editForm.hide_photo,
       passout_year: editForm.passout_year || null,
     } as any).eq("user_id", user.id);
+
+    if (!error) {
+      // Keep the students row in sync so branch pages/search reflect edits immediately.
+      const { data: mainBranches } = await supabase.from("main_branches" as any).select("id, name");
+      const { data: specializations } = await supabase.from("specializations" as any).select("id, name, branch_id");
+
+      let nextMainBranchId: string | null = null;
+      let nextSpecializationId: string | null = null;
+
+      if (normalizedBranch) {
+        const matchedSpec = (specializations || []).find(
+          (sp: any) => String(sp.name).toLowerCase() === normalizedBranch.toLowerCase()
+        );
+        if (matchedSpec) {
+          nextMainBranchId = matchedSpec.branch_id;
+          nextSpecializationId = matchedSpec.id;
+        } else {
+          const matchedMain = (mainBranches || []).find(
+            (mb: any) => String(mb.name).toLowerCase() === normalizedBranch.toLowerCase()
+          );
+          if (matchedMain) nextMainBranchId = matchedMain.id;
+        }
+      }
+
+      const cy = new Date().getFullYear();
+      let gradYear: number | null = null;
+      if ((profile as any)?.is_alumni && editForm.passout_year) {
+        gradYear = editForm.passout_year;
+      } else if (normalizedYear) {
+        const match = normalizedYear.match(/(\d+)/);
+        if (match) {
+          const yr = parseInt(match[1], 10);
+          if (!Number.isNaN(yr)) gradYear = cy + (4 - yr);
+        }
+      }
+
+      await supabase.from("students").upsert({
+        id: user.id,
+        name: editForm.full_name.trim() || profile?.full_name || "Unknown",
+        college_id: profile?.college_id,
+        main_branch_id: nextMainBranchId,
+        specialization_id: nextSpecializationId,
+        branch_name: normalizedBranch,
+        graduation_year: gradYear,
+        bio: editForm.bio.trim() || null,
+        skills: normalizedSkills,
+        avatar_url: profile?.photo_url || null,
+        status: (profile as any)?.is_alumni ? "alumni" : "active",
+      } as any);
+    }
+
     setSavingProfile(false);
     if (error) toast.error("Failed to update profile");
     else { toast.success("Profile updated!"); await refreshProfile(); setShowEditProfile(false); }
