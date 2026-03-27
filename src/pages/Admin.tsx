@@ -406,6 +406,7 @@ const Admin = () => {
   const [clubProposalsLoading, setClubProposalsLoading] = useState(false);
   const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
   const [proposalRejectReason, setProposalRejectReason] = useState<Record<string, string>>({});
+  const [alumniProfileFallbacks, setAlumniProfileFallbacks] = useState<Record<string, any>>({});
 
   const fetchCoreTeam = async () => {
     if (!activeCollegeId) return;
@@ -683,6 +684,34 @@ const Admin = () => {
   useEffect(() => {
     if (section === "college_admins" && isSuperAdmin) fetchCollegeAdmins();
   }, [section, isSuperAdmin, colleges, activeCollegeId]);
+
+  useEffect(() => {
+    const loadAlumniProfileFallbacks = async () => {
+      if (section !== "alumni" || !effectiveCollegeId) {
+        setAlumniProfileFallbacks({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, branch, passout_year, company")
+        .eq("college_id", effectiveCollegeId)
+        .eq("is_alumni", true);
+
+      if (error) {
+        console.error("Failed to load alumni profile fallbacks", error);
+        return;
+      }
+
+      const map: Record<string, any> = {};
+      for (const row of data || []) {
+        map[(row as any).user_id] = row;
+      }
+      setAlumniProfileFallbacks(map);
+    };
+
+    loadAlumniProfileFallbacks();
+  }, [section, effectiveCollegeId]);
 
   const handleAssignCollegeAdmin = async () => {
     if (!adminEmail.trim() || !activeCollegeId) {
@@ -1519,6 +1548,10 @@ const Admin = () => {
   }, [effectiveCollegeId, queryClient]);
 
   const activeCollege = colleges.find((c: any) => c.id === activeCollegeId);
+  const studentsById = (students || []).reduce((acc: Record<string, any>, s: any) => {
+    acc[s.id] = s;
+    return acc;
+  }, {});
 
   const stats = [
     { label: "Students", value: students.length, icon: Users, change: `${students.filter((s: any) => s.status === "active").length} active` },
@@ -2456,9 +2489,19 @@ const Admin = () => {
             )}
             {section === "alumni" && (
               <DataTable columns={["Name", "Batch", "Department", "Role", "Company", "Featured"]}
-                rows={(alumni || []).filter((a: any) => a.name.toLowerCase().includes(search.toLowerCase())).map((a: any) => ({
-                  id: a.id, cells: [a.name, a.batch || "-", a.department || "-", a.role || "-", a.company || "-", a.featured ? "⭐ Yes" : "No"], raw: a,
-                }))} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
+                rows={(alumni || []).filter((a: any) => a.name.toLowerCase().includes(search.toLowerCase())).map((a: any) => {
+                  const profileFallback = alumniProfileFallbacks[a.id] || null;
+                  const studentFallback = studentsById[a.id] || null;
+                  const resolvedBatch = a.batch || (profileFallback?.passout_year ? String(profileFallback.passout_year) : null) || (studentFallback?.graduation_year ? String(studentFallback.graduation_year) : null) || "-";
+                  const resolvedCompany = a.company || profileFallback?.company || studentFallback?.social_links?.company || "-";
+                  const resolvedDepartment = a.department || profileFallback?.branch || studentFallback?.branch_name || studentFallback?.specialization?.name || studentFallback?.main_branch?.name || "-";
+
+                  return {
+                    id: a.id,
+                    cells: [a.name, resolvedBatch, resolvedDepartment, a.role || "-", resolvedCompany, a.featured ? "⭐ Yes" : "No"],
+                    raw: a,
+                  };
+                })} onEdit={(r) => openEdit(r.id, r.raw)} onDelete={(id) => handleDelete(id)} />
             )}
             {section === "ieee_members" && (
               <DataTable columns={["Name", "Role", "Department", "IEEE ID", "Papers", "Officer"]}
