@@ -218,11 +218,34 @@ const Alumni = () => {
   const [showFilters, setShowFilters] = useState(false);
   const { data: dbAlumni = [], isLoading } = useAlumni();
 
-  // Extract unique departments and batches from data
-  const departments = ["All", ...Array.from(new Set(dbAlumni.map((a: any) => a.department).filter(Boolean)))];
-  const batches = ["All", ...Array.from(new Set(dbAlumni.map((a: any) => a.batch).filter(Boolean))).sort((a: any, b: any) => b.localeCompare(a))];
+  // Guard against duplicate rows for the same person in alumni table.
+  // Keep the newest row (dbAlumni is already ordered by created_at desc).
+  const alumni = (() => {
+    const seen = new Set<string>();
+    const unique: any[] = [];
 
-  const filtered = dbAlumni.filter((a: any) => {
+    for (const a of dbAlumni as any[]) {
+      const key = [
+        String(a?.name || "").trim().toLowerCase(),
+        String(a?.batch || "").trim().toLowerCase(),
+        String(a?.company || "").trim().toLowerCase(),
+        String(a?.role || "").trim().toLowerCase(),
+        String(a?.department || "").trim().toLowerCase(),
+      ].join("|");
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(a);
+    }
+
+    return unique;
+  })();
+
+  // Extract unique departments and batches from data
+  const departments = ["All", ...Array.from(new Set(alumni.map((a: any) => a.department).filter(Boolean)))];
+  const batches = ["All", ...Array.from(new Set(alumni.map((a: any) => a.batch).filter(Boolean))).sort((a: any, b: any) => b.localeCompare(a))];
+
+  const filtered = alumni.filter((a: any) => {
     const matchSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.company || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.specialization || "").toLowerCase().includes(searchQuery.toLowerCase());
@@ -231,8 +254,8 @@ const Alumni = () => {
     return matchSearch && matchDept && matchBatch;
   });
 
-  const uniqueCompanies = new Set(dbAlumni.map((a: any) => a.company).filter(Boolean));
-  const uniqueLocations = new Set(dbAlumni.map((a: any) => a.location).filter(Boolean));
+  const uniqueCompanies = new Set(alumni.map((a: any) => a.company).filter(Boolean));
+  const uniqueLocations = new Set(alumni.map((a: any) => a.location).filter(Boolean));
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -272,10 +295,10 @@ const Alumni = () => {
         {/* STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
           {[
-            { icon: Users, value: `${dbAlumni.length}`, label: "Alumni Registered", color: "hsl(263 70% 58%)" },
+            { icon: Users, value: `${alumni.length}`, label: "Alumni Registered", color: "hsl(263 70% 58%)" },
             { icon: Building2, value: `${uniqueCompanies.size}`, label: "Companies", color: "hsl(30 95% 55%)" },
             { icon: Globe2, value: `${uniqueLocations.size}`, label: "Locations", color: "hsl(160 70% 45%)" },
-            { icon: TrendingUp, value: `${dbAlumni.filter((a: any) => a.featured).length}`, label: "Featured", color: "hsl(340 80% 55%)" },
+            { icon: TrendingUp, value: `${alumni.filter((a: any) => a.featured).length}`, label: "Featured", color: "hsl(340 80% 55%)" },
           ].map((stat, i) => (
             <motion.div key={i} whileHover={{ y: -4 }} className="glass rounded-xl p-4 flex items-center gap-3 card-hover">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${stat.color}20` }}>
@@ -289,7 +312,7 @@ const Alumni = () => {
           ))}
         </div>
 
-        <FeaturedSpotlight alumni={dbAlumni} />
+        <FeaturedSpotlight alumni={alumni} />
 
         {/* SEARCH & FILTERS */}
         <div className="mb-8">
