@@ -480,7 +480,7 @@ export default function PublicProfile() {
               <p className="text-sm text-muted-foreground leading-relaxed">{profile.bio || "No bio available."}</p>
             </motion.div>
           </div>
-        </d=iv>
+        </div>
       </div>
     </div>
   );
