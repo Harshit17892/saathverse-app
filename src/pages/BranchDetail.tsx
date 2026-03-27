@@ -876,4 +876,4 @@ const BranchDetail = () => {
   );
 };
 
-export default BranchDetil;
+export default BranchDetail;
