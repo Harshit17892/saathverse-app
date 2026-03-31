@@ -608,7 +608,7 @@ const BranchDetail = () => {
       if (userIds.length > 0) {
         let profilesQuery = supabase
           .from("profiles")
-          .select("user_id, year_of_study, hackathon_interest")
+          .select("user_id, year_of_study")
           .in("user_id", userIds);
 
         if (collegeId) {
@@ -620,7 +620,6 @@ const BranchDetail = () => {
           (profileRows || []).forEach((p: any) => {
             profileByUserId.set(String(p.user_id), {
               year_of_study: p.year_of_study,
-              hackathon_interest: p.hackathon_interest,
             });
           });
 
@@ -643,6 +642,29 @@ const BranchDetail = () => {
               profileByUserId.set(key, {
                 ...prev,
                 degree_level: d.degree_level,
+              });
+            });
+          }
+
+          // Optional hackathon_interest fetch. If the column is missing,
+          // we keep working with year/degree metadata.
+          let hackathonQuery = supabase
+            .from("profiles")
+            .select("user_id, hackathon_interest")
+            .in("user_id", userIds);
+
+          if (collegeId) {
+            hackathonQuery = hackathonQuery.eq("college_id", collegeId);
+          }
+
+          const { data: hackathonRows, error: hackathonErr } = await hackathonQuery;
+          if (!hackathonErr) {
+            (hackathonRows || []).forEach((h: any) => {
+              const key = String(h.user_id);
+              const prev = profileByUserId.get(key) || {};
+              profileByUserId.set(key, {
+                ...prev,
+                hackathon_interest: h.hackathon_interest,
               });
             });
           }
