@@ -743,46 +743,28 @@ const Admin = () => {
         return;
       }
 
-      // Call the invite-admin edge function
-      // Refresh the session first to ensure a valid JWT is used
-      await supabase.auth.refreshSession();
-      const { data: fnData, error: fnError } = await supabase.functions.invoke("invite-admin", {
-        body: { email, college_id: activeCollegeId, college_name: collegeName },
+      // Call the invite-admin edge function using direct fetch to avoid gateway JWT issues
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      const accessToken = refreshData?.session?.access_token;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      const fnResponse = await fetch(`${supabaseUrl}/functions/v1/invite-admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": anonKey,
+          ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ email, college_id: activeCollegeId, college_name: collegeName }),
       });
 
-      if (fnError) {
-        let responseDetail = "";
-        const responseContext = (fnError as any)?.context;
-        if (responseContext) {
-          try {
-            const parsed = await responseContext.clone().json();
-            responseDetail = parsed?.error || parsed?.message || JSON.stringify(parsed);
-          } catch {
-            try {
-              responseDetail = await responseContext.clone().text();
-            } catch {
-              responseDetail = "";
-            }
-          }
-        }
+      const fnData = await fnResponse.json().catch(() => ({}));
+      const fnError = !fnResponse.ok ? { message: fnData?.error || `Request failed (status: ${fnResponse.status})`, context: { status: fnResponse.status, ...fnData } } : null;
 
-        const contextText = (() => {
-          try {
-            return JSON.stringify((fnError as any)?.context || {});
-          } catch {
-            return "";
-          }
-        })();
-        const detail =
-          (fnError as any)?.context?.error ||
-          (fnError as any)?.context?.message ||
-          (fnError as any)?.error ||
-          (fnError as any)?.message ||
-          "Edge function request failed";
-        const status = (fnError as any)?.context?.status || (fnError as any)?.status;
-        const combinedDetail = responseDetail ? `${detail} | ${responseDetail}` : detail;
-        const withStatus = status ? `${combinedDetail} (status: ${status})` : combinedDetail;
-        throw new Error(contextText ? `${withStatus} | ${contextText}` : withStatus);
+      if (fnError) {
+        const detail = fnError.message || "Edge function request failed";
+        throw new Error(detail);
       }
 
       // The edge function returns { error: "..." } on validation failures
