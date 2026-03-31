@@ -744,10 +744,9 @@ const Admin = () => {
       }
 
       // Call the invite-admin edge function
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      // Refresh the session first to ensure a valid JWT is used
+      await supabase.auth.refreshSession();
       const { data: fnData, error: fnError } = await supabase.functions.invoke("invite-admin", {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: { email, college_id: activeCollegeId, college_name: collegeName },
       });
 
