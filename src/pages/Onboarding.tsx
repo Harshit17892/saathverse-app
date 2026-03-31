@@ -198,13 +198,24 @@ export default function Onboarding() {
       .from("profiles")
       .upsert(profilePayload, { onConflict: "user_id" });
 
-    // Fallback for fresh projects where degree_level migration is missing.
-    if (error && (error.message || "").toLowerCase().includes("degree_level")) {
-      const { degree_level: _degreeLevel, ...payloadWithoutDegree } = profilePayload;
-      const retry = await supabase
-        .from("profiles")
-        .upsert(payloadWithoutDegree, { onConflict: "user_id" });
-      error = retry.error;
+    // Fallback for fresh projects where optional profile columns are missing.
+    if (error) {
+      const lowerMessage = (error.message || "").toLowerCase();
+      const payloadWithoutOptional = { ...profilePayload } as any;
+
+      if (lowerMessage.includes("degree_level")) {
+        delete payloadWithoutOptional.degree_level;
+      }
+      if (lowerMessage.includes("hackathon_interest")) {
+        delete payloadWithoutOptional.hackathon_interest;
+      }
+
+      if (Object.keys(payloadWithoutOptional).length !== Object.keys(profilePayload).length) {
+        const retry = await supabase
+          .from("profiles")
+          .upsert(payloadWithoutOptional, { onConflict: "user_id" });
+        error = retry.error;
+      }
     }
 
     if (error) { toast.error(error.message); setSubmitting(false); return; }
