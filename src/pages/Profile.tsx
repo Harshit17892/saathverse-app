@@ -52,6 +52,7 @@ const Profile = () => {
     full_name: "",
     bio: "",
     branch: "",
+    degree_level: "",
     year_of_study: "",
     skills: "",
     hide_photo: false,
@@ -139,6 +140,7 @@ const Profile = () => {
       full_name: profile?.full_name || "",
       bio: profile?.bio || "",
       branch: profile?.branch || "",
+      degree_level: (profile as any)?.degree_level || "",
       year_of_study: profile?.year_of_study || "",
       skills: (profile?.skills || []).join(", "),
       hide_photo: profile?.hide_photo || false,
@@ -155,16 +157,37 @@ const Profile = () => {
     const normalizedYear = editForm.year_of_study || null;
     const normalizedSkills = editForm.skills ? editForm.skills.split(",").map(s => s.trim()).filter(Boolean) : [];
 
-    const { error } = await supabase.from("profiles").update({
+    const profilePayload: any = {
       full_name: editForm.full_name.trim() || null,
       bio: editForm.bio.trim() || null,
       branch: normalizedBranch,
+      degree_level: editForm.degree_level || null,
       year_of_study: normalizedYear,
       skills: normalizedSkills,
       hide_photo: editForm.hide_photo,
       passout_year: editForm.passout_year || null,
       hackathon_interest: editForm.hackathon_interest,
-    } as any).eq("user_id", user.id);
+    };
+
+    let { error } = await supabase.from("profiles").update(profilePayload).eq("user_id", user.id);
+
+    // Backward compatibility for projects missing optional profile columns.
+    if (error) {
+      const lowerMessage = (error.message || "").toLowerCase();
+      const payloadWithoutOptional = { ...profilePayload } as any;
+
+      if (lowerMessage.includes("degree_level")) {
+        delete payloadWithoutOptional.degree_level;
+      }
+      if (lowerMessage.includes("hackathon_interest")) {
+        delete payloadWithoutOptional.hackathon_interest;
+      }
+
+      if (Object.keys(payloadWithoutOptional).length !== Object.keys(profilePayload).length) {
+        const retry = await supabase.from("profiles").update(payloadWithoutOptional).eq("user_id", user.id);
+        error = retry.error;
+      }
+    }
 
     if (!error) {
       // Keep the students row in sync so branch pages/search reflect edits immediately.
@@ -509,6 +532,21 @@ const Profile = () => {
                 <Input value={editForm.branch} onChange={e => setEditForm({ ...editForm, branch: e.target.value })} placeholder="e.g. CSE" />
               </div>
               <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Degree Level</label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={editForm.degree_level}
+                  onChange={e => setEditForm({ ...editForm, degree_level: e.target.value })}
+                >
+                  <option value="">Select</option>
+                  <option value="UG">UG</option>
+                  <option value="PG">PG</option>
+                  <option value="PhD">PhD</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Year of Study</label>
                 <select
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -521,6 +559,7 @@ const Profile = () => {
                   ))}
                 </select>
               </div>
+              <div />
             </div>
             {(editForm.year_of_study === "Alumni" || profile?.is_alumni) && (
               <div>
