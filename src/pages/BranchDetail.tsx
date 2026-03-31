@@ -608,7 +608,7 @@ const BranchDetail = () => {
       if (userIds.length > 0) {
         let profilesQuery = supabase
           .from("profiles")
-          .select("user_id, degree_level, year_of_study, hackathon_interest")
+          .select("user_id, year_of_study, hackathon_interest")
           .in("user_id", userIds);
 
         if (collegeId) {
@@ -619,11 +619,33 @@ const BranchDetail = () => {
         if (!profileErr) {
           (profileRows || []).forEach((p: any) => {
             profileByUserId.set(String(p.user_id), {
-              degree_level: p.degree_level,
               year_of_study: p.year_of_study,
               hackathon_interest: p.hackathon_interest,
             });
           });
+
+          // Optional degree_level fetch. If the column is not present yet,
+          // we still keep year/hackathon values from the base query.
+          let degreeQuery = supabase
+            .from("profiles")
+            .select("user_id, degree_level")
+            .in("user_id", userIds);
+
+          if (collegeId) {
+            degreeQuery = degreeQuery.eq("college_id", collegeId);
+          }
+
+          const { data: degreeRows, error: degreeErr } = await degreeQuery;
+          if (!degreeErr) {
+            (degreeRows || []).forEach((d: any) => {
+              const key = String(d.user_id);
+              const prev = profileByUserId.get(key) || {};
+              profileByUserId.set(key, {
+                ...prev,
+                degree_level: d.degree_level,
+              });
+            });
+          }
         }
       }
 
