@@ -124,7 +124,7 @@ export default function PublicProfile() {
         }
         const { data: prof } = await supabase
           .from("profiles")
-          .select("branch, bio, photo_url, skills, linkedin_url, github_url, year_of_study, hackathon_interest")
+          .select("branch, bio, photo_url, skills, linkedin_url, github_url, year_of_study")
           .eq("user_id", userId)
           .maybeSingle();
 
@@ -132,6 +132,12 @@ export default function PublicProfile() {
           const { data: degreeRow } = await supabase
             .from("profiles")
             .select("degree_level")
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          const { data: hackathonRow } = await supabase
+            .from("profiles")
+            .select("hackathon_interest")
             .eq("user_id", userId)
             .maybeSingle();
 
@@ -145,7 +151,7 @@ export default function PublicProfile() {
             _github: prof.github_url,
             _degree_level: (degreeRow as any)?.degree_level,
             _year_of_study: (prof as any).year_of_study,
-            _hackathon_interest: (prof as any).hackathon_interest,
+            _hackathon_interest: (hackathonRow as any)?.hackathon_interest,
           }));
         }
       }
