@@ -822,11 +822,40 @@ const Admin = () => {
           description: `${email} already has an account — assigned as college admin directly for ${collegeName}.`,
         });
       } else {
-        // New user — invite saved; role will auto-apply when they sign up
-        toast({
-          title: "✅ Invite saved!",
-          description: `Invite saved for ${email}. When they sign up on SaathVerse, they'll automatically be assigned as college admin for ${collegeName}.`,
-        });
+        // New user — send a magic link invite email via Supabase Auth
+        let emailSent = false;
+        try {
+          const { error: otpErr } = await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              emailRedirectTo: `https://www.saathverse.com/auth/callback`,
+              data: {
+                college_id: activeCollegeId,
+                invited_as: "college_admin",
+                college_name: collegeName,
+              },
+            },
+          });
+          if (!otpErr) {
+            emailSent = true;
+          } else {
+            console.error("OTP email error:", otpErr);
+          }
+        } catch (emailErr) {
+          console.error("Failed to send invite email:", emailErr);
+        }
+
+        if (emailSent) {
+          toast({
+            title: "✅ Invite sent!",
+            description: `An invite email has been sent to ${email}. They can click the link to join SaathVerse as college admin for ${collegeName}.`,
+          });
+        } else {
+          toast({
+            title: "✅ Invite saved!",
+            description: `Invite saved for ${email}. When they sign up on SaathVerse, they'll automatically be assigned as college admin for ${collegeName}.`,
+          });
+        }
       }
 
       setAdminEmail("");
