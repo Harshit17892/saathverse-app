@@ -175,9 +175,7 @@ export default function Onboarding() {
       if (spRow) specializationId = (spRow as any).id;
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({
+    const profilePayload: any = {
         user_id: user.id,
         college_id: college?.id || null,
         full_name: fullName.trim(),
@@ -194,7 +192,20 @@ export default function Onboarding() {
         skills: isAdminInvite ? [] : skills,
         bio: isAdminInvite ? (designation || null) : (bio || null),
         photo_url: photoUrl,
-      } as any, { onConflict: "user_id" });
+      };
+
+    let { error } = await supabase
+      .from("profiles")
+      .upsert(profilePayload, { onConflict: "user_id" });
+
+    // Fallback for fresh projects where degree_level migration is missing.
+    if (error && (error.message || "").toLowerCase().includes("degree_level")) {
+      const { degree_level: _degreeLevel, ...payloadWithoutDegree } = profilePayload;
+      const retry = await supabase
+        .from("profiles")
+        .upsert(payloadWithoutDegree, { onConflict: "user_id" });
+      error = retry.error;
+    }
 
     if (error) { toast.error(error.message); setSubmitting(false); return; }
 
