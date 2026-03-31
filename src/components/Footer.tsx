@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Github, Twitter, Mail, Heart, Zap, Globe, Layers, Rocket, Radio, Shield } from "lucide-react";
+import { ArrowUpRight, Mail, Heart, Zap, Globe, Layers, Rocket, Radio, Shield } from "lucide-react";
 import saathverseLogo from "@/assets/saathverse-logo-new.png";
 
 const navLinks = [
@@ -48,8 +48,6 @@ const Footer = () => {
             {/* Social icons */}
             <div className="flex items-center gap-2.5">
               {[
-                { icon: Twitter, href: "#", label: "Twitter" },
-                { icon: Github, href: "#", label: "GitHub" },
                 { icon: Mail, href: "mailto:support@saathverse.com", label: "Email" },
               ].map((social) => (
                 <a
@@ -129,8 +127,6 @@ const Footer = () => {
               </p>
               <div className="flex items-center gap-3 pt-2">
                 {[
-                  { icon: Twitter, href: "#", label: "Twitter" },
-                  { icon: Github, href: "#", label: "GitHub" },
                   { icon: Mail, href: "mailto:support@saathverse.com", label: "Email" },
                 ].map((social) => (
                   <motion.a
