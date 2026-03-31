@@ -48,7 +48,16 @@ const Profile = () => {
 
   // Edit Profile modal
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [editForm, setEditForm] = useState({ full_name: "", bio: "", branch: "", year_of_study: "", skills: "", hide_photo: false, passout_year: null as number | null });
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    bio: "",
+    branch: "",
+    year_of_study: "",
+    skills: "",
+    hide_photo: false,
+    passout_year: null as number | null,
+    hackathon_interest: false,
+  });
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Change Password modal
@@ -134,6 +143,7 @@ const Profile = () => {
       skills: (profile?.skills || []).join(", "),
       hide_photo: profile?.hide_photo || false,
       passout_year: (profile as any)?.passout_year || null,
+      hackathon_interest: !!(profile as any)?.hackathon_interest,
     });
     setShowEditProfile(true);
   };
@@ -153,6 +163,7 @@ const Profile = () => {
       skills: normalizedSkills,
       hide_photo: editForm.hide_photo,
       passout_year: editForm.passout_year || null,
+      hackathon_interest: editForm.hackathon_interest,
     } as any).eq("user_id", user.id);
 
     if (!error) {
@@ -529,6 +540,18 @@ const Profile = () => {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Skills (comma separated)</label>
               <Input value={editForm.skills} onChange={e => setEditForm({ ...editForm, skills: e.target.value })} placeholder="React, Python, ML..." />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border/20">
+              <div>
+                <p className="text-sm font-medium text-foreground">Interested in Hackathons</p>
+                <p className="text-[11px] text-muted-foreground">Show this on your public profile and branch cards</p>
+              </div>
+              <button
+                onClick={() => setEditForm({ ...editForm, hackathon_interest: !editForm.hackathon_interest })}
+                className={`relative h-6 w-11 rounded-full transition-colors ${editForm.hackathon_interest ? "bg-primary" : "bg-secondary"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${editForm.hackathon_interest ? "translate-x-5" : ""}`} />
+              </button>
             </div>
             {profile?.gender?.toLowerCase() === "female" && (
               <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border/20">
