@@ -724,14 +724,32 @@ const Admin = () => {
       const activeCol = colleges.find((c: any) => c.id === activeCollegeId);
       const collegeName = activeCol?.name || "your college";
 
-      // Frontend 3-admin limit check (count pending + accepted invites for this college)
-      const { count: adminCount, error: countErr } = await supabase
+      // Check for existing invite for this email+college
+      const { data: existingInvite } = await supabase
+        .from("pending_admin_invites" as any)
+        .select("id, status")
+        .eq("email", email)
+        .eq("college_id", activeCollegeId)
+        .maybeSingle();
+
+      if (existingInvite) {
+        if ((existingInvite as any).status === "accepted") {
+          toast({ title: "Already assigned", description: "This email is already an admin for this college.", variant: "destructive" });
+          setAssigningAdmin(false);
+          return;
+        }
+        // If pending/rejected, delete old one and re-create
+        if ((existingInvite as any).status === "pending" || (existingInvite as any).status === "rejected") {
+          await supabase.from("pending_admin_invites" as any).delete().eq("id", (existingInvite as any).id);
+        }
+      }
+
+      // 3-admin limit check
+      const { count: adminCount } = await supabase
         .from("pending_admin_invites" as any)
         .select("*", { count: "exact", head: true })
         .eq("college_id", activeCollegeId)
         .in("status", ["pending", "accepted"]);
-
-      if (countErr) throw countErr;
 
       if ((adminCount || 0) >= 3) {
         toast({
@@ -743,50 +761,74 @@ const Admin = () => {
         return;
       }
 
-      // Call the invite-admin edge function using direct fetch to avoid gateway JWT issues
-      const { data: refreshData } = await supabase.auth.refreshSession();
-      const accessToken = refreshData?.session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-      const fnResponse = await fetch(`${supabaseUrl}/functions/v1/invite-admin`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": anonKey,
-          ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({ email, college_id: activeCollegeId, college_name: collegeName }),
-      });
-
-      const fnData = await fnResponse.json().catch(() => ({}));
-      const fnError = !fnResponse.ok ? { message: fnData?.error || `Request failed (status: ${fnResponse.status})`, context: { status: fnResponse.status, ...fnData } } : null;
-
-      if (fnError) {
-        const detail = fnError.message || "Edge function request failed";
-        throw new Error(detail);
-      }
-
-      // The edge function returns { error: "..." } on validation failures
-      if (fnData?.error && !fnData?.success) {
-        toast({ title: "Error", description: fnData.error, variant: "destructive" });
+      // Get current user ID for invited_by field
+      const { data: sessionData } = await supabase.auth.getSession();
+      const callerId = sessionData?.session?.user?.id;
+      if (!callerId) {
+        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
         setAssigningAdmin(false);
         return;
       }
 
-      if (fnData?.email_failed) {
+      // Insert the pending invite
+      const { error: inviteErr } = await supabase
+        .from("pending_admin_invites" as any)
+        .insert({
+          email,
+          college_id: activeCollegeId,
+          role: "college_admin",
+          invited_by: callerId,
+        } as any);
+
+      if (inviteErr) {
+        if (inviteErr.code === "23505") {
+          toast({ title: "Duplicate invite", description: "This email already has a pending invite for this college.", variant: "destructive" });
+          setAssigningAdmin(false);
+          return;
+        }
+        throw inviteErr;
+      }
+
+      // Check if the user already exists by email via students table
+      const { data: existingStudents } = await supabase
+        .from("students")
+        .select("id, email")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (existingStudents) {
+        // User already has an account — assign role directly
+        const { error: roleErr } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: (existingStudents as any).id,
+            role: "college_admin" as any,
+            college_id: activeCollegeId,
+          });
+
+        if (roleErr && roleErr.code !== "23505") {
+          console.error("Role assignment error:", roleErr);
+        }
+
+        // Mark invite as accepted
+        await supabase
+          .from("pending_admin_invites" as any)
+          .update({ status: "accepted", updated_at: new Date().toISOString() } as any)
+          .eq("email", email)
+          .eq("college_id", activeCollegeId);
+
         toast({
-          title: "Invite saved (email failed)",
-          description: fnData?.message || "Invite is saved and will auto-apply on signup.",
-          variant: "destructive",
+          title: "✅ Success!",
+          description: `${email} already has an account — assigned as college admin directly for ${collegeName}.`,
         });
       } else {
-        const successMsg = fnData?.message || (fnData?.already_registered
-          ? `${email} already has an account — assigned as college admin directly.`
-          : `Invite sent to ${email}. They'll receive an email with instructions to set up their admin account for ${collegeName}.`);
-
-        toast({ title: "✅ Success!", description: successMsg });
+        // New user — invite saved; role will auto-apply when they sign up
+        toast({
+          title: "✅ Invite saved!",
+          description: `Invite saved for ${email}. When they sign up on SaathVerse, they'll automatically be assigned as college admin for ${collegeName}.`,
+        });
       }
+
       setAdminEmail("");
       fetchCollegeAdmins();
     } catch (e: any) {
