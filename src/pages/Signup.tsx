@@ -413,9 +413,7 @@ const Signup = () => {
       if (spRow) specializationId = (spRow as any).id;
     }
 
-    const { error: profileUpdateError } = await supabase
-      .from("profiles")
-      .upsert({
+    const profilePayload: any = {
         user_id: userId,
         full_name: fullName.trim(),
         college_id: college.id,
@@ -434,7 +432,20 @@ const Signup = () => {
         hackathon_interest: hackathonInterest,
         gender: gender || null,
         hide_photo: gender === "female" ? hidePhoto : false,
-      } as any, { onConflict: "user_id" });
+      };
+
+    let { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .upsert(profilePayload, { onConflict: "user_id" });
+
+    // Fallback for fresh projects where degree_level migration is missing.
+    if (profileUpdateError && (profileUpdateError.message || "").toLowerCase().includes("degree_level")) {
+      const { degree_level: _degreeLevel, ...payloadWithoutDegree } = profilePayload;
+      const retry = await supabase
+        .from("profiles")
+        .upsert(payloadWithoutDegree, { onConflict: "user_id" });
+      profileUpdateError = retry.error;
+    }
 
     if (profileUpdateError) {
       if ((profileUpdateError.message || "").includes("students_email_key")) {
