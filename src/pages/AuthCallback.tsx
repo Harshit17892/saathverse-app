@@ -59,30 +59,37 @@ const AuthCallback = () => {
       const isAdminInviteByMeta = authUser?.user_metadata?.invited_as === "college_admin";
       let pendingInvite: any = null;
       if (!isAdminInviteByMeta) {
+        // Check both 'pending' and 'accepted' statuses — accepted means they were
+        // assigned but may not have completed setup yet
         const { data } = await supabase
           .from("pending_admin_invites" as any)
           .select("id, status, college_id")
           .eq("email", userEmail)
-          .eq("status", "pending")
+          .in("status", ["pending", "accepted"])
           .maybeSingle();
         pendingInvite = data;
       }
 
-      // Check if user has a complete profile
+      const isAdminInvite = !!(pendingInvite || isAdminInviteByMeta);
+
+      // Check if user has a profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, branch, year_of_study, gender")
         .eq("user_id", userId)
         .maybeSingle();
 
-      const isProfileIncomplete = !profile ||
+      // For admin users: only check full_name (admins don't need branch/year)
+      // For regular users: check full_name, branch, and year_of_study
+      const isAdminProfileIncomplete = !profile || !profile.full_name;
+      const isStudentProfileIncomplete = !profile ||
         !profile.full_name ||
         !profile.branch ||
         !profile.year_of_study;
 
-      if (pendingInvite || isAdminInviteByMeta) {
+      if (isAdminInvite) {
         // Invited admin
-        if (isProfileIncomplete) {
+        if (isAdminProfileIncomplete) {
           // Needs to complete admin setup
           setStatus("success");
           setMessage("Invite verified! Let's set up your admin account…");
@@ -93,7 +100,7 @@ const AuthCallback = () => {
           setMessage("Welcome back, admin! Redirecting…");
           setTimeout(() => navigate("/admin", { replace: true }), 1200);
         }
-      } else if (isProfileIncomplete) {
+      } else if (isStudentProfileIncomplete) {
         // Regular user with incomplete profile
         setStatus("success");
         setMessage("Email verified! Let's complete your profile setup…");
