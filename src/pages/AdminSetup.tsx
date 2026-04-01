@@ -45,6 +45,35 @@ const AdminSetup = () => {
   useEffect(() => {
     const loadInvite = async () => {
       if (!user?.email) return;
+
+      // Primary: check user_metadata set by signInWithOtp
+      const meta = user.user_metadata;
+      if (meta?.invited_as === "college_admin" && meta?.college_id) {
+        setCollegeId(meta.college_id);
+
+        // Fetch college name
+        const { data: college } = await supabase
+          .from("colleges")
+          .select("name")
+          .eq("id", meta.college_id)
+          .maybeSingle();
+
+        setCollegeName((college as any)?.name || meta?.college_name || "your college");
+
+        // Try to find invite ID (may fail due to RLS, that's OK)
+        const { data: invite } = await supabase
+          .from("pending_admin_invites" as any)
+          .select("id")
+          .eq("email", user.email.toLowerCase())
+          .eq("status", "pending")
+          .maybeSingle();
+        if (invite) setInviteId((invite as any).id);
+
+        setInviteLoading(false);
+        return;
+      }
+
+      // Fallback: try DB query (works if user already has admin role from previous session)
       const { data: invite } = await supabase
         .from("pending_admin_invites" as any)
         .select("id, college_id, status")
@@ -53,7 +82,7 @@ const AdminSetup = () => {
         .maybeSingle();
 
       if (!invite) {
-        // No pending invite — redirect away
+        // No pending invite found — redirect away
         toast.error("No pending admin invite found for your account.");
         navigate("/discover", { replace: true });
         return;
@@ -101,7 +130,7 @@ const AdminSetup = () => {
     if (!password || password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     if (password !== confirmPassword) { toast.error("Passwords do not match"); return; }
     if (!user) { toast.error("Not logged in"); return; }
-    if (!collegeId || !inviteId) { toast.error("Missing invite data"); return; }
+    if (!collegeId) { toast.error("Missing college data"); return; }
 
     setLoading(true);
     try {
@@ -166,11 +195,20 @@ const AdminSetup = () => {
         });
       }
 
-      // 5. Mark invite as accepted
-      await supabase
-        .from("pending_admin_invites" as any)
-        .update({ status: "accepted", updated_at: new Date().toISOString() })
-        .eq("id", inviteId);
+      // 5. Mark invite as accepted (try by ID first, then by email+college fallback)
+      if (inviteId) {
+        await supabase
+          .from("pending_admin_invites" as any)
+          .update({ status: "accepted", updated_at: new Date().toISOString() })
+          .eq("id", inviteId);
+      } else if (user.email) {
+        // Fallback: mark by email + college_id (works even without knowing invite ID)
+        await supabase
+          .from("pending_admin_invites" as any)
+          .update({ status: "accepted", updated_at: new Date().toISOString() } as any)
+          .eq("email", user.email.toLowerCase())
+          .eq("college_id", collegeId);
+      }
 
       await refreshProfile();
       toast.success("🎉 Welcome aboard! Redirecting to Admin Dashboard…");
