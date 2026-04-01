@@ -204,34 +204,70 @@ const AdminSetup = () => {
 
       if (profError) throw profError;
 
-      // 4. Assign college_admin role
-      const { error: roleErr } = await supabase.from("user_roles").upsert({
-        user_id: user.id,
-        role: "college_admin" as any,
-        college_id: collegeId,
-      }, { onConflict: "user_id,role" as any });
-      if (roleErr) {
-        // If upsert fails, try insert (some schemas don't have the composite unique)
-        await supabase.from("user_roles").insert({
+      // 4 & 5. Assign college_admin role + mark invite accepted via RPC
+      // The RPC runs with SECURITY DEFINER to bypass RLS
+      let roleAssigned = false;
+      try {
+        const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+          "accept_admin_invite" as any,
+          { p_user_id: user.id, p_college_id: collegeId }
+        );
+        if (rpcErr) {
+          console.error("accept_admin_invite RPC error:", rpcErr);
+        } else {
+          const result = rpcResult as any;
+          if (result?.success) {
+            roleAssigned = true;
+            console.log("✅ Admin role assigned via RPC");
+          } else {
+            console.warn("RPC returned:", result);
+          }
+        }
+      } catch (rpcCatchErr) {
+        console.error("RPC call failed (function may not exist):", rpcCatchErr);
+      }
+
+      // Fallback: try direct writes if RPC didn't work
+      if (!roleAssigned) {
+        console.log("Trying direct role assignment fallback...");
+        const { error: roleErr } = await supabase.from("user_roles").upsert({
           user_id: user.id,
           role: "college_admin" as any,
           college_id: collegeId,
-        });
-      }
+        }, { onConflict: "user_id,role" as any });
+        if (roleErr) {
+          console.error("user_roles upsert failed:", roleErr);
+          // Try plain insert
+          const { error: insertErr } = await supabase.from("user_roles").insert({
+            user_id: user.id,
+            role: "college_admin" as any,
+            college_id: collegeId,
+          });
+          if (insertErr) {
+            console.error("user_roles insert also failed:", insertErr);
+            toast.error("⚠️ Could not assign admin role. Please ask the super admin to manually assign your role from the admin panel.");
+          } else {
+            roleAssigned = true;
+          }
+        } else {
+          roleAssigned = true;
+        }
 
-      // 5. Mark invite as accepted (try by ID first, then by email+college fallback)
-      if (inviteId) {
-        await supabase
-          .from("pending_admin_invites" as any)
-          .update({ status: "accepted", updated_at: new Date().toISOString() })
-          .eq("id", inviteId);
-      } else if (user.email) {
-        // Fallback: mark by email + college_id (works even without knowing invite ID)
-        await supabase
-          .from("pending_admin_invites" as any)
-          .update({ status: "accepted", updated_at: new Date().toISOString() } as any)
-          .eq("email", user.email.toLowerCase())
-          .eq("college_id", collegeId);
+        // Mark invite as accepted (fallback)
+        if (inviteId) {
+          const { error: invUpErr } = await supabase
+            .from("pending_admin_invites" as any)
+            .update({ status: "accepted", updated_at: new Date().toISOString() })
+            .eq("id", inviteId);
+          if (invUpErr) console.error("Invite update by ID failed:", invUpErr);
+        } else if (user.email) {
+          const { error: invUpErr2 } = await supabase
+            .from("pending_admin_invites" as any)
+            .update({ status: "accepted", updated_at: new Date().toISOString() } as any)
+            .eq("email", user.email.toLowerCase())
+            .eq("college_id", collegeId);
+          if (invUpErr2) console.error("Invite update by email failed:", invUpErr2);
+        }
       }
 
       await refreshProfile();
