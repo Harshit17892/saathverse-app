@@ -37,7 +37,7 @@ interface Project {
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState<"overview" | "projects">("overview");
-  const { user, profile, college, refreshProfile } = useAuth();
+  const { user, profile, college, refreshProfile, isAdmin } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
@@ -304,7 +304,7 @@ const Profile = () => {
                   <div>
                     <h1 className="text-3xl font-display font-bold text-foreground">{displayName}</h1>
                     <p className="text-muted-foreground mt-1">
-                      {isAlumni ? `Alumni • ${company || branch}` : `${branch} • ${yearOfStudy || "Student"}`}
+                      {isAdmin ? `College Admin • ${collegeName || branch}` : isAlumni ? `Alumni • ${company || branch}` : `${branch} • ${yearOfStudy || "Student"}`}
                     </p>
                     <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                       {collegeName && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {collegeName}</span>}
