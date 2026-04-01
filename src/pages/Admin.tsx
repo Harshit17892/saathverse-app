@@ -745,9 +745,7 @@ const Admin = () => {
           return;
         }
         // If pending/rejected, delete old one and re-create
-        if ((existingInvite as any).status === "pending" || (existingInvite as any).status === "rejected") {
-          await supabase.from("pending_admin_invites" as any).delete().eq("id", (existingInvite as any).id);
-        }
+        await supabase.from("pending_admin_invites" as any).delete().eq("id", (existingInvite as any).id);
       }
 
       // 3-admin limit check
@@ -795,7 +793,7 @@ const Admin = () => {
         throw inviteErr;
       }
 
-      // Check if the user already exists by email via students table
+      // If the user already exists in students table, assign role directly too
       const { data: existingStudents } = await supabase
         .from("students")
         .select("id, email")
@@ -803,7 +801,7 @@ const Admin = () => {
         .maybeSingle();
 
       if (existingStudents) {
-        // User already has an account — assign role directly
+        // Assign role directly for existing users
         const { error: roleErr } = await supabase
           .from("user_roles")
           .insert({
@@ -822,46 +820,47 @@ const Admin = () => {
           .update({ status: "accepted", updated_at: new Date().toISOString() } as any)
           .eq("email", email)
           .eq("college_id", activeCollegeId);
+      }
 
+      // ALWAYS send an invite/magic-link email via Supabase Auth (for both new and existing users)
+      let emailSent = false;
+      try {
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `https://www.saathverse.com/auth/callback`,
+            data: {
+              college_id: activeCollegeId,
+              invited_as: "college_admin",
+              college_name: collegeName,
+            },
+          },
+        });
+        if (!otpErr) {
+          emailSent = true;
+        } else {
+          console.error("OTP email error:", otpErr);
+        }
+      } catch (emailErr) {
+        console.error("Failed to send invite email:", emailErr);
+      }
+
+      if (emailSent) {
         toast({
-          title: "✅ Success!",
-          description: `${email} already has an account — assigned as college admin directly for ${collegeName}.`,
+          title: "✅ Invite sent!",
+          description: existingStudents
+            ? `${email} has been assigned as college admin and received a notification email for ${collegeName}.`
+            : `An invite email has been sent to ${email}. They can click the link to join SaathVerse as college admin for ${collegeName}.`,
         });
       } else {
-        // New user — send a magic link invite email via Supabase Auth
-        let emailSent = false;
-        try {
-          const { error: otpErr } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-              emailRedirectTo: `https://www.saathverse.com/auth/callback`,
-              data: {
-                college_id: activeCollegeId,
-                invited_as: "college_admin",
-                college_name: collegeName,
-              },
-            },
-          });
-          if (!otpErr) {
-            emailSent = true;
-          } else {
-            console.error("OTP email error:", otpErr);
-          }
-        } catch (emailErr) {
-          console.error("Failed to send invite email:", emailErr);
-        }
-
-        if (emailSent) {
-          toast({
-            title: "✅ Invite sent!",
-            description: `An invite email has been sent to ${email}. They can click the link to join SaathVerse as college admin for ${collegeName}.`,
-          });
-        } else {
-          toast({
-            title: "✅ Invite saved!",
-            description: `Invite saved for ${email}. When they sign up on SaathVerse, they'll automatically be assigned as college admin for ${collegeName}.`,
-          });
-        }
+        toast({
+          title: existingStudents ? "✅ Admin assigned!" : "✅ Invite saved!",
+          description: existingStudents
+            ? `${email} assigned as college admin for ${collegeName}. (Email notification could not be sent — Supabase may be rate-limiting. Try again in a minute.)`
+            : `Invite saved for ${email}. Email could not be sent (rate limit). When they sign up, they'll automatically get admin access for ${collegeName}.`,
+          variant: emailSent ? "default" : "destructive",
+        });
       }
 
       setAdminEmail("");
@@ -880,12 +879,45 @@ const Admin = () => {
 
     try {
       if (type === "pending" || type === "invite_accepted") {
-        // Mark the invite as rejected (or delete it)
-        const { error } = await supabase
+        // Delete the invite record
+        const { error: delErr } = await supabase
           .from("pending_admin_invites" as any)
           .delete()
           .eq("id", roleId);
-        if (error) throw error;
+        
+        if (delErr) {
+          console.error("Delete invite error:", delErr);
+          throw delErr;
+        }
+
+        // Also remove any corresponding user_roles entry (for invite_accepted)
+        if (adminEmail && collegeId) {
+          // Find the user by email in students table
+          const { data: student } = await supabase
+            .from("students")
+            .select("id")
+            .eq("email", adminEmail.toLowerCase())
+            .maybeSingle();
+          if (student) {
+            await supabase.from("user_roles").delete()
+              .eq("user_id", (student as any).id)
+              .eq("role", "college_admin" as any)
+              .eq("college_id", collegeId);
+          }
+        }
+
+        // Verify deletion actually happened
+        const { data: stillExists } = await supabase
+          .from("pending_admin_invites" as any)
+          .select("id")
+          .eq("id", roleId)
+          .maybeSingle();
+
+        if (stillExists) {
+          toast({ title: "Delete failed", description: "Could not delete the invite. This may be a database permissions issue. Please delete it directly from the Supabase dashboard.", variant: "destructive" });
+        } else {
+          toast({ title: "Invite revoked" });
+        }
       } else {
         // Remove the user_role so they lose admin access immediately
         const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
@@ -898,10 +930,11 @@ const Admin = () => {
             .eq("email", adminEmail.toLowerCase())
             .eq("college_id", collegeId);
         }
+        toast({ title: "College admin removed" });
       }
-      toast({ title: type === "assigned" ? "College admin removed" : "Invite revoked" });
       fetchCollegeAdmins();
     } catch (e: any) {
+      console.error("Remove admin error:", e);
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
   };
