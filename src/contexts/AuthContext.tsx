@@ -98,9 +98,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkRoles = async (userId: string, email: string) => {
     const { data: isGlobalAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-    const { data: isCollegeAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "college_admin" });
+    let { data: isCollegeAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "college_admin" });
     const { data: isCore } = await supabase.rpc("has_role", { _user_id: userId, _role: "core_team" });
     const isSA = SUPER_ADMIN_EMAILS.includes(email.toLowerCase());
+
+    // Auto-recovery: if user was invited as college_admin but role wasn't assigned
+    // (e.g. RLS blocked the insert during admin setup), try to fix it now
+    if (!isCollegeAdmin && !isSA) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const meta = authUser?.user_metadata;
+      if (meta?.invited_as === "college_admin" && meta?.college_id) {
+        console.log("[AuthContext] User has admin invite metadata but no role — attempting auto-recovery via RPC...");
+        try {
+          const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+            "accept_admin_invite" as any,
+            { p_user_id: userId, p_college_id: meta.college_id }
+          );
+          if (!rpcErr && (rpcResult as any)?.success) {
+            console.log("[AuthContext] ✅ Auto-recovery succeeded — admin role assigned");
+            // Re-check the role
+            const { data: recheck } = await supabase.rpc("has_role", { _user_id: userId, _role: "college_admin" });
+            isCollegeAdmin = recheck;
+          } else {
+            console.warn("[AuthContext] Auto-recovery RPC failed:", rpcErr || rpcResult);
+          }
+        } catch (e) {
+          console.error("[AuthContext] Auto-recovery error:", e);
+        }
+      }
+    }
 
     if (isSA) {
       await ensureSuperAdminActiveCollege();
