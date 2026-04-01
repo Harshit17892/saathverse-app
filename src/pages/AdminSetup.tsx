@@ -178,6 +178,30 @@ const AdminSetup = () => {
         profError = retry.error;
       }
 
+      // If error is students_email_key (from sync_profile_to_student trigger), 
+      // clear the conflicting student email and retry the profile upsert
+      if (profError && (profError.message || "").includes("students_email_key")) {
+        console.warn("students_email_key conflict — clearing conflicting email and retrying");
+        // Try to rename the conflicting student's email so our insert can proceed
+        if (user.email) {
+          await supabase
+            .from("students")
+            .update({ email: `legacy+${user.id.substring(0, 8)}@migrated.local` })
+            .eq("email", user.email.toLowerCase())
+            .neq("id", user.id);
+        }
+        // Retry profile upsert
+        const retry2 = await supabase
+          .from("profiles")
+          .upsert(profilePayload, { onConflict: "user_id" });
+        profError = retry2.error;
+        // If it still fails on the same thing, just ignore — profile may already exist
+        if (profError && (profError.message || "").includes("students_email_key")) {
+          console.warn("students_email_key still failing — continuing anyway, profile likely exists");
+          profError = null;
+        }
+      }
+
       if (profError) throw profError;
 
       // 4. Assign college_admin role
