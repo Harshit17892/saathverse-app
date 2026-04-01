@@ -82,6 +82,11 @@ export const ProtectedRoute = ({
         return <>{children}</>;
       }
 
+      // If user was invited as admin, redirect to admin-setup instead of student onboarding
+      if (user?.user_metadata?.invited_as === "college_admin") {
+        return <Navigate to="/admin-setup" replace />;
+      }
+
       return <Navigate to="/signup?onboarding=1" replace />;
     }
 
