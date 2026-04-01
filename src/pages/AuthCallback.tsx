@@ -54,13 +54,19 @@ const AuthCallback = () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const userEmail = authUser?.email?.toLowerCase() || "";
 
-      // Check if user has a pending admin invite
-      const { data: pendingInvite } = await supabase
-        .from("pending_admin_invites" as any)
-        .select("id, status, college_id")
-        .eq("email", userEmail)
-        .eq("status", "pending")
-        .maybeSingle();
+      // Check if user has a pending admin invite via user metadata first (RLS-safe),
+      // then fall back to DB query (may fail due to RLS for non-admin users)
+      const isAdminInviteByMeta = authUser?.user_metadata?.invited_as === "college_admin";
+      let pendingInvite: any = null;
+      if (!isAdminInviteByMeta) {
+        const { data } = await supabase
+          .from("pending_admin_invites" as any)
+          .select("id, status, college_id")
+          .eq("email", userEmail)
+          .eq("status", "pending")
+          .maybeSingle();
+        pendingInvite = data;
+      }
 
       // Check if user has a complete profile
       const { data: profile } = await supabase
@@ -74,7 +80,7 @@ const AuthCallback = () => {
         !profile.branch ||
         !profile.year_of_study;
 
-      if (pendingInvite) {
+      if (pendingInvite || isAdminInviteByMeta) {
         // Invited admin
         if (isProfileIncomplete) {
           // Needs to complete admin setup
