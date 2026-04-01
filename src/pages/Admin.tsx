@@ -631,11 +631,11 @@ const Admin = () => {
       if (activeCollegeId) rolesQuery.eq("college_id", activeCollegeId);
       const { data: roles } = await rolesQuery;
       
-      // Fetch pending invites filtered by active college
+      // Fetch pending AND accepted invites filtered by active college (to show all and allow removal)
       const invitesQuery = supabase
         .from("pending_admin_invites" as any)
         .select("*")
-        .eq("status", "pending");
+        .in("status", ["pending", "accepted"]);
       if (activeCollegeId) invitesQuery.eq("college_id", activeCollegeId);
       const { data: invites } = await invitesQuery;
 
@@ -651,11 +651,7 @@ const Admin = () => {
       }
 
       // Fetch accepted invites to get emails for assigned admins (keyed by college_id)
-      const { data: acceptedInvites } = await supabase
-        .from("pending_admin_invites" as any)
-        .select("email, college_id, status");
-      // Build a lookup: find email for each user_id by matching against accepted invites
-      const allInvitesList = (acceptedInvites as any[]) || [];
+      const allInvitesList = ((invites as any[]) || []);
 
       // Enrich roles with college names and profile info
       const enrichedRoles = (roles || []).map((r: any) => {
@@ -668,11 +664,21 @@ const Admin = () => {
         return { ...r, college_name: col?.name || "Unknown", type: "assigned", profile_name: displayName, profile_photo: prof?.photo_url || null, profile_branch: prof?.branch || null, admin_email: adminEmail };
       });
 
-      // Enrich invites
-      const enrichedInvites = ((invites as any[]) || []).map((inv: any) => {
-        const col = colleges.find((c: any) => c.id === inv.college_id);
-        return { ...inv, college_name: col?.name || "Unknown", type: "pending" };
-      });
+      // Build set of emails that already have assigned roles to avoid duplicates
+      const assignedEmails = new Set(enrichedRoles.map((r: any) => r.admin_email?.toLowerCase()).filter(Boolean));
+
+      // Enrich invites — show pending invites AND accepted invites that don't have a matching user_role
+      const enrichedInvites = ((invites as any[]) || [])
+        .filter((inv: any) => {
+          // Always show pending invites
+          if (inv.status === "pending") return true;
+          // Show accepted invites only if they don't already appear as assigned roles
+          return !assignedEmails.has(inv.email?.toLowerCase());
+        })
+        .map((inv: any) => {
+          const col = colleges.find((c: any) => c.id === inv.college_id);
+          return { ...inv, college_name: col?.name || "Unknown", type: inv.status === "pending" ? "pending" : "invite_accepted" };
+        });
 
       setCollegeAdmins([...enrichedRoles, ...enrichedInvites]);
     } catch (e) {
@@ -867,33 +873,33 @@ const Admin = () => {
   };
 
   const handleRemoveCollegeAdmin = async (roleId: string, type: string, adminEmail?: string, collegeId?: string) => {
-    const confirmMsg = type === "pending"
-      ? "Are you sure you want to revoke this pending invite?"
+    const confirmMsg = type === "pending" || type === "invite_accepted"
+      ? "Are you sure you want to revoke this invite?"
       : "Are you sure you want to remove this college admin? They will immediately lose admin access.";
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      if (type === "pending") {
-        // Mark the pending invite as rejected (preserve the row for history)
+      if (type === "pending" || type === "invite_accepted") {
+        // Mark the invite as rejected (or delete it)
         const { error } = await supabase
           .from("pending_admin_invites" as any)
-          .update({ status: "rejected", updated_at: new Date().toISOString() })
+          .delete()
           .eq("id", roleId);
         if (error) throw error;
       } else {
         // Remove the user_role so they lose admin access immediately
         const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
         if (error) throw error;
-        // Mark the corresponding invite as rejected (preserve the row)
+        // Also delete the corresponding invite
         if (adminEmail && collegeId) {
           await supabase
             .from("pending_admin_invites" as any)
-            .update({ status: "rejected", updated_at: new Date().toISOString() })
+            .delete()
             .eq("email", adminEmail.toLowerCase())
             .eq("college_id", collegeId);
         }
       }
-      toast({ title: type === "pending" ? "Invite revoked" : "College admin removed" });
+      toast({ title: type === "assigned" ? "College admin removed" : "Invite revoked" });
       fetchCollegeAdmins();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -2133,26 +2139,26 @@ const Admin = () => {
                       <motion.div key={admin.id} whileHover={{ x: 3 }}
                         className="flex items-center justify-between p-3 rounded-xl border border-border/30 bg-secondary/20 hover:bg-secondary/40 transition-colors">
                         <div className="flex items-center gap-3">
-                          {admin.type !== "pending" && admin.profile_photo ? (
+                          {admin.type === "assigned" && admin.profile_photo ? (
                             <img src={admin.profile_photo} alt={admin.profile_name || "Admin"} className="h-9 w-9 rounded-full object-cover border border-border/30" />
                           ) : (
-                            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-accent-foreground ${admin.type === "pending" ? "bg-gradient-to-br from-yellow-500 to-orange-500" : "bg-gradient-to-br from-accent to-primary"}`}>
-                              {(admin.type === "pending" ? admin.email : (admin.profile_name || "?")).charAt(0).toUpperCase()}
+                            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold text-accent-foreground ${admin.type === "assigned" ? "bg-gradient-to-br from-accent to-primary" : "bg-gradient-to-br from-yellow-500 to-orange-500"}`}>
+                              {(admin.type !== "assigned" ? admin.email : (admin.profile_name || "?")).charAt(0).toUpperCase()}
                             </div>
                           )}
                           <div>
                             <p className="text-sm font-medium text-foreground">
-                              {admin.type === "pending" ? admin.email : (admin.profile_name || "Unknown User")}
+                              {admin.type !== "assigned" ? admin.email : (admin.profile_name || "Unknown User")}
                             </p>
-                            {admin.type !== "pending" && admin.profile_branch && (
+                            {admin.type === "assigned" && admin.profile_branch && (
                               <p className="text-[11px] text-muted-foreground">{admin.profile_branch}</p>
                             )}
                             <p className="text-[11px] text-muted-foreground">{admin.college_name}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`text-[10px] ${admin.type === "pending" ? "border-yellow-500/40 text-yellow-500" : "border-accent/40 text-accent"}`}>
-                            {admin.type === "pending" ? "⏳ Pending Invite" : "College Admin"}
+                          <Badge variant="outline" className={`text-[10px] ${admin.type === "pending" ? "border-yellow-500/40 text-yellow-500" : admin.type === "invite_accepted" ? "border-orange-500/40 text-orange-400" : "border-accent/40 text-accent"}`}>
+                            {admin.type === "pending" ? "⏳ Pending Invite" : admin.type === "invite_accepted" ? "⚠️ Stale Invite" : "College Admin"}
                           </Badge>
                           <Button size="sm" variant="ghost" onClick={() => handleRemoveCollegeAdmin(admin.id, admin.type, admin.admin_email || admin.email, admin.college_id)}
                             className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg">
