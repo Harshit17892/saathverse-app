@@ -155,7 +155,7 @@ const AdminSetup = () => {
         }
       }
 
-      // 3. Upsert profile
+      // 3. Upsert profile (include branch + year_of_study so profile is "complete")
       const profilePayload: any = {
         user_id: user.id,
         full_name: fullName.trim(),
@@ -163,6 +163,8 @@ const AdminSetup = () => {
         college_id: collegeId,
         bio: designation.trim() || null,
         phone: phoneNumber.trim() || null,
+        branch: designation.trim() || "Admin",
+        year_of_study: "N/A",
       };
 
       let { error: profError } = await supabase
