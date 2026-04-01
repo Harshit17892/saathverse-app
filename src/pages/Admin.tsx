@@ -2191,7 +2191,7 @@ const Admin = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className={`text-[10px] ${admin.type === "pending" ? "border-yellow-500/40 text-yellow-500" : admin.type === "invite_accepted" ? "border-orange-500/40 text-orange-400" : "border-accent/40 text-accent"}`}>
-                            {admin.type === "pending" ? "⏳ Pending Invite" : admin.type === "invite_accepted" ? "⚠️ Stale Invite" : "College Admin"}
+                            {admin.type === "pending" ? "⏳ Pending Invite" : admin.type === "invite_accepted" ? "✅ Invite Accepted" : "College Admin"}
                           </Badge>
                           <Button size="sm" variant="ghost" onClick={() => handleRemoveCollegeAdmin(admin.id, admin.type, admin.admin_email || admin.email, admin.college_id)}
                             className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg">
