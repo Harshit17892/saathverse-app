@@ -127,16 +127,28 @@ const AdminSetup = () => {
       }
 
       // 3. Upsert profile
-      const { error: profError } = await supabase
+      const profilePayload: any = {
+        user_id: user.id,
+        full_name: fullName.trim(),
+        photo_url: photoUrl,
+        college_id: collegeId,
+        bio: designation.trim() || null,
+        phone: phoneNumber.trim() || null,
+      };
+
+      let { error: profError } = await supabase
         .from("profiles")
-        .upsert({
-          user_id: user.id,
-          full_name: fullName.trim(),
-          photo_url: photoUrl,
-          college_id: collegeId,
-          bio: designation.trim() || null,
-          phone: phoneNumber.trim() || null,
-        } as any, { onConflict: "user_id" });
+        .upsert(profilePayload, { onConflict: "user_id" });
+
+      // Backward compatibility for projects where profiles.phone does not exist yet.
+      if (profError && (profError.message || "").toLowerCase().includes("phone")) {
+        const { phone: _phone, ...payloadWithoutPhone } = profilePayload;
+        const retry = await supabase
+          .from("profiles")
+          .upsert(payloadWithoutPhone, { onConflict: "user_id" });
+        profError = retry.error;
+      }
+
       if (profError) throw profError;
 
       // 4. Assign college_admin role
