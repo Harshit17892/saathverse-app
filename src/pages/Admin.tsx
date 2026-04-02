@@ -54,7 +54,7 @@ import ClubDashboardSection from "@/components/admin/ClubDashboardSection";
 const sidebarSections = [
   { label: "Colleges", icon: Building2, key: "colleges", superOnly: true },
   { label: "College Admins", icon: Shield, key: "college_admins", superOnly: true },
-  { label: "Core Team", icon: Shield, key: "core_team", superOnly: true },
+  { label: "Core Team", icon: Shield, key: "core_team" },
   { label: "Form Settings", icon: Settings2, key: "form_settings", superOnly: false },
   { label: "Students", icon: Users, key: "students" },
   { label: "Branch Carousel", icon: Calendar, key: "events" },
@@ -82,6 +82,7 @@ type SidebarItem = { label: string; icon: any; key: string };
 type SidebarGroup = { groupLabel: string; icon: any; items: SidebarItem[] };
 
 const groupedSidebar: (SidebarItem | SidebarGroup)[] = [
+  { label: "Core Team", icon: Shield, key: "core_team" },
   { label: "Form Settings", icon: Settings2, key: "form_settings" },
   { label: "Students", icon: Users, key: "students" },
   { label: "Branch Stars", icon: Trophy, key: "branch_featured" },
@@ -409,20 +410,21 @@ const Admin = () => {
   const [alumniProfileFallbacks, setAlumniProfileFallbacks] = useState<Record<string, any>>({});
 
   const fetchCoreTeam = async () => {
-    if (!activeCollegeId) return;
+    if (!effectiveCollegeId) return;
     setCoreTeamLoading(true);
     try {
       const { data: roles, error: rErr } = await supabase
         .from("user_roles")
         .select("id, user_id, role, college_id")
         .eq("role", "core_team" as any)
-        .eq("college_id", activeCollegeId);
+        .eq("college_id", effectiveCollegeId);
       if (rErr) throw rErr;
 
       const userIds = (roles || []).map((r: any) => r.user_id);
       let profilesMap: Record<string, any> = {};
       let studentsMap: Record<string, any> = {};
       if (userIds.length > 0) {
+        // Fetch profiles
         const { data: profiles, error: pErr } = await supabase
           .from("profiles")
           .select("user_id, full_name, photo_url, branch")
@@ -433,7 +435,7 @@ const Admin = () => {
         const { data: students, error: sErr } = await supabase
           .from("students")
           .select("id, name, email, avatar_url, branch_name, main_branch:main_branch_id(name), specialization:specialization_id(name)")
-          .eq("college_id", activeCollegeId)
+          .eq("college_id", effectiveCollegeId)
           .in("id", userIds);
         if (sErr) throw sErr;
         (students || []).forEach((s: any) => { studentsMap[s.id] = s; });
@@ -479,13 +481,13 @@ const Admin = () => {
   };
 
   useEffect(() => {
-    if (section === "core_team" && isSuperAdmin) fetchCoreTeam();
+    if (section === "core_team") fetchCoreTeam();
     if (section === "club_proposals") fetchClubProposals();
-  }, [section, isSuperAdmin, activeCollegeId]);
+  }, [section, effectiveCollegeId]);
 
   useEffect(() => {
     if (section !== "core_team") return;
-    if (!activeCollegeId) return;
+    if (!effectiveCollegeId) return;
     if (coreTeamQuery.trim().length < 2) {
       setCoreTeamSearchResults([]);
       return;
@@ -495,7 +497,7 @@ const Admin = () => {
       const { data, error } = await supabase
         .from("students")
         .select("id, name, email, branch_name, main_branch:main_branch_id(name), specialization:specialization_id(name)")
-        .eq("college_id", activeCollegeId)
+        .eq("college_id", effectiveCollegeId)
         .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
         .limit(8);
 
@@ -517,10 +519,10 @@ const Admin = () => {
       setCoreTeamSearchResults(normalized);
     }, 250);
     return () => clearTimeout(t);
-  }, [coreTeamQuery, section, activeCollegeId, coreTeamMembers]);
+  }, [coreTeamQuery, section, effectiveCollegeId, coreTeamMembers]);
 
   const handleAssignCoreTeam = async () => {
-    if (!activeCollegeId || !coreTeamSelectedUserId) {
+    if (!effectiveCollegeId || !coreTeamSelectedUserId) {
       toast({ title: "Select a user", variant: "destructive" });
       return;
     }
@@ -529,7 +531,7 @@ const Admin = () => {
       const { error } = await supabase.from("user_roles").insert({
         user_id: coreTeamSelectedUserId,
         role: "core_team" as any,
-        college_id: activeCollegeId,
+        college_id: effectiveCollegeId,
       });
       if (error && error.code !== "23505") throw error;
       toast({ title: "Core team assigned" });
@@ -1900,7 +1902,7 @@ const Admin = () => {
                 </Button>
               </>
             )}
-            {section !== "college_admins" && section !== "club_dashboard" && (
+            {section !== "college_admins" && section !== "club_dashboard" && section !== "core_team" && (
               <Button size="sm" onClick={openCreate} className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl glow-accent">
                 <Plus className="h-4 w-4" /> Add {sectionLabel}
               </Button>
@@ -2226,7 +2228,7 @@ const Admin = () => {
                     placeholder="Search student by name..."
                     value={coreTeamQuery}
                     onChange={(e) => setCoreTeamQuery(e.target.value)}
-                    disabled={!activeCollegeId || assigningCoreTeam}
+                    disabled={!effectiveCollegeId || assigningCoreTeam}
                   />
 
                   {coreTeamSearchResults.length > 0 && (
@@ -2259,7 +2261,7 @@ const Admin = () => {
 
                   <Button
                     onClick={handleAssignCoreTeam}
-                    disabled={!activeCollegeId || !coreTeamSelectedUserId || assigningCoreTeam}
+                    disabled={!effectiveCollegeId || !coreTeamSelectedUserId || assigningCoreTeam}
                     className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl"
                   >
                     {assigningCoreTeam ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
@@ -2328,7 +2330,7 @@ const Admin = () => {
             </motion.div>
           )}
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`glass rounded-2xl overflow-hidden ${section === "form_settings" || section === "college_admins" || section === "club_dashboard" ? "hidden" : ""}`}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`glass rounded-2xl overflow-hidden ${section === "form_settings" || section === "college_admins" || section === "club_dashboard" || section === "core_team" ? "hidden" : ""}`}>
             {section === "club_proposals" && (
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
