@@ -27,8 +27,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-// Super admin emails — can view/manage ALL colleges
-const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
+// Super admin is now determined from user_roles DB table — no hard-coded emails.
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -100,7 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: isGlobalAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     let { data: isCollegeAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "college_admin" });
     const { data: isCore } = await supabase.rpc("has_role", { _user_id: userId, _role: "core_team" });
-    const isSA = SUPER_ADMIN_EMAILS.includes(email.toLowerCase());
+    const { data: isSAFromDB } = await supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" });
+    const isSA = !!isSAFromDB;
 
     // Auto-recovery: if user was invited as college_admin but role wasn't assigned
     // (e.g. RLS blocked the insert during admin setup), try to fix it now
