@@ -8,7 +8,8 @@ const isProfileSetupComplete = () =>
   sessionStorage.getItem("profile_setup_complete") === "1" ||
   localStorage.getItem("profile_setup_complete") === "1";
 
-
+// Super admin emails — must match AuthContext
+const SUPER_ADMIN_EMAILS = ["harshit02425@gmail.com"];
 
 export const ProtectedRoute = ({
   children,
@@ -26,8 +27,8 @@ export const ProtectedRoute = ({
     () => isProfileSetupComplete()
   );
 
-  // Super admin is now resolved from DB via AuthContext
-  const isSA = isSuperAdmin;
+  // Detect super admin directly from email to avoid async timing issues
+  const isSA = isSuperAdmin || SUPER_ADMIN_EMAILS.includes(user?.email?.toLowerCase() ?? "");
 
   useEffect(() => {
     if (loading || !user || isSA || profile) {
