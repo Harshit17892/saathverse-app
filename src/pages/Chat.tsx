@@ -131,31 +131,68 @@ const Chat = () => {
 
     const loadContacts = async () => {
       setContactsLoading(true);
+
+      // Auto-connect bots first
       await autoConnectBots();
 
-      // F9: Single RPC call replaces 2N+2 query pattern
-      const { data: rpcContacts, error } = await supabase.rpc(
-        'get_chat_contacts' as any,
-        { p_user_id: user.id }
-      );
+      // Get accepted connections
+      const { data: connections } = await supabase
+        .from("connections")
+        .select("*")
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .eq("status", "accepted");
 
-      if (error || !rpcContacts) {
-        console.error("get_chat_contacts error:", error);
+      if (!connections || connections.length === 0) {
         setContacts([]);
+        setActiveContact(null);
         setContactsLoading(false);
         return;
       }
 
-      const contactList: ChatContact[] = (rpcContacts as any[]).map((c: any) => ({
-        id: c.contact_id,
-        name: c.name || "Unknown",
-        initials: getInitials(c.name || "?"),
-        avatar_url: c.avatar_url,
-        lastMsg: c.last_msg || "Say hi! 👋",
-        lastMsgTime: c.last_msg_time || "",
-        unread: Number(c.unread_count) || 0,
-        status: "online" as const,
-      }));
+      const otherIds = connections.map(c =>
+        c.sender_id === user.id ? c.receiver_id : c.sender_id
+      );
+
+      // Fetch student info for all contacts
+      const { data: students } = await supabase
+        .from("students")
+        .select("id, name, avatar_url")
+        .in("id", otherIds);
+
+      if (!students) { setContactsLoading(false); return; }
+
+      // Fetch last message and unread count for each contact
+      const contactList: ChatContact[] = [];
+      for (const student of students) {
+        const convId = getConversationId(user.id, student.id);
+
+        // Last message
+        const { data: lastMsgs } = await supabase
+          .from("messages")
+          .select("content, created_at")
+          .eq("conversation_id", convId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        // Unread count
+        const { count } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("conversation_id", convId)
+          .eq("receiver_id", user.id)
+          .eq("is_read", false);
+
+        contactList.push({
+          id: student.id,
+          name: student.name,
+          initials: getInitials(student.name),
+          avatar_url: student.avatar_url,
+          lastMsg: lastMsgs?.[0]?.content || "Say hi! 👋",
+          lastMsgTime: lastMsgs?.[0]?.created_at || "",
+          unread: count || 0,
+          status: "online",
+        });
+      }
 
       // Sort: unread first, then by last message time
       contactList.sort((a, b) => {
@@ -167,6 +204,7 @@ const Chat = () => {
 
       setContacts(contactList);
 
+      // Auto-select target user if provided
       if (targetUserId) {
         const target = contactList.find(c => c.id === targetUserId);
         if (target) {
@@ -333,14 +371,13 @@ const Chat = () => {
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          // F10: Realtime is healthy — stop polling, sync once
-          if (pollInterval) { clearInterval(pollInterval); pollInterval = undefined; }
+          // Force a fresh sync as soon as channel is ready.
           fetchMessages(true);
         }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          // F10: Realtime lost — start polling as fallback (5s interval)
+          // Keep polling alive as fallback when websocket is unstable.
           if (pollInterval) clearInterval(pollInterval);
-          pollInterval = setInterval(() => fetchMessages(false), 5000);
+          pollInterval = setInterval(() => fetchMessages(false), 3000);
         }
       });
 
@@ -349,8 +386,11 @@ const Chat = () => {
         if (pollInterval) clearInterval(pollInterval);
         pollInterval = undefined;
       } else {
+        // Fetch and mark read immediately when returning to the tab
         fetchMessages(true);
-        // F10: Don't restart permanent poll here — Realtime callback handles it
+        // Always keep a polling fallback active while visible.
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => fetchMessages(false), 3000);
       }
     };
 
@@ -361,7 +401,8 @@ const Chat = () => {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleWindowFocus);
 
-    // F10: NO permanent polling — polling only starts in the Realtime error callback
+    // Keep lightweight polling as a permanent safety net.
+    pollInterval = setInterval(() => fetchMessages(false), 3000);
 
     return () => {
       if (pollInterval) clearInterval(pollInterval);
